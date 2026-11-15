@@ -64,7 +64,8 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
 .ewrap{flex:1;display:flex;align-items:center;justify-content:center;width:100%;min-height:0}
 #ecan{touch-action:none;background:#000;border-radius:6px}
 .ebot{display:flex;gap:10px;padding:10px 8px calc(10px + env(safe-area-inset-bottom));width:100%;justify-content:center}
-.sheet{background:var(--card);border-radius:14px;padding:16px;width:min(420px,100%)}
+.sheet{background:var(--card);border-radius:14px;padding:16px;width:min(420px,100%);max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);overflow-y:auto}
+.sheet .stick{position:sticky;bottom:-16px;background:var(--card);padding:10px 0 4px;margin-bottom:-4px;border-top:1px solid var(--line)}
 .sheet h3{margin:0 0 10px}
 .sheet label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
 .sheet input[type=text],.sheet input[type=password],.sheet input[type=datetime-local],.sheet select{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font:inherit}
@@ -140,7 +141,7 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
     <div class="acts" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px"><button class="btn" id="chgpw">🔑 Change my password</button><button class="btn" id="refreshApp">⟳ Refresh app (get latest version)</button></div>
     <div class="dt" id="who" style="margin-top:10px"></div>
     <div class="dt" id="ver"></div>
-    <div class="acts" style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn primary" id="menuClose">Done</button></div>
+    <div class="acts stick" style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn primary" id="menuClose">Done</button></div>
   </div>
 </div>
 
@@ -184,7 +185,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-15.5";
+const APP_VER="2026-11-15.6";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
