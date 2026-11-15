@@ -136,7 +136,9 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
       <label class="btn" style="margin:0;color:var(--ink)">⬆ Import / restore (.json)<input type="file" id="jsonin" accept=".json,application/json" style="display:none"></label>
       <button class="btn" id="logout">Log out</button>
     </div>
+    <div class="acts" style="margin-top:10px"><button class="btn" id="refreshApp">⟳ Refresh app (get latest version)</button></div>
     <div class="dt" id="who" style="margin-top:10px"></div>
+    <div class="dt" id="ver"></div>
     <div class="acts" style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn primary" id="menuClose">Done</button></div>
   </div>
 </div>
@@ -181,6 +183,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
+const APP_VER="2026-11-15.2";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app";
@@ -673,6 +676,25 @@ $("#menuClose").onclick=()=>{
   localStorage.pl_size=cfg.size;localStorage.pl_stamp=cfg.stamp?"1":"0";
   $("#menu").classList.remove("on");
   if(view==="proj")renderProject();else if(view==="report")report();else if(view==="home")home();};
+async function refreshApp(){
+  try{if(window.caches){for(const k of await caches.keys())await caches.delete(k)}}catch{}
+  try{const rs=await navigator.serviceWorker?.getRegistrations?.();if(rs)for(const r of rs)await r.unregister()}catch{}
+  const u=new URL(location.href);u.searchParams.set("v",Date.now());location.replace(u.toString());
+}
+$("#refreshApp").onclick=refreshApp;
+$("#ver").textContent="Version "+APP_VER;
+async function checkUpdate(){
+  try{
+    const r=await fetch(location.pathname+"?c="+Date.now(),{cache:"no-store"});if(!r.ok)return;
+    const m=(await r.text()).match(/const APP_VER="([^"]+)"/);
+    if(m&&m[1]!==APP_VER){
+      const d=document.createElement("div");
+      d.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:95;background:#1b3a8c;color:#fff;padding:12px;text-align:center;font-size:14px;padding-bottom:calc(12px + env(safe-area-inset-bottom))";
+      d.textContent="A new version is available – tap here to update";d.onclick=refreshApp;document.body.appendChild(d);
+    }
+  }catch{}
+}
+checkUpdate();
 $("#fullbk").onclick=()=>{$("#menu").classList.remove("on");fullBackup()};
 $("#logout").onclick=async()=>{$("#menu").classList.remove("on");await sb.auth.signOut()};
 $("#viewer").onclick=e=>{if(e.target.id==="viewer")$("#viewer").classList.remove("on")};
