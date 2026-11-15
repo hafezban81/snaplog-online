@@ -183,14 +183,14 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-15.3";
+const APP_VER="2026-11-15.4";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
-const BUCKET="photos",DOMAIN="@snaplog.app";
+const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
 const sb=window.supabase.createClient(SB_URL,SB_KEY);
 let me=null,isAdmin=false;
 const J=r=>{if(r.error)throw r.error;return r.data};
-const who=()=>(me&&me.email||"").replace(DOMAIN,"");
+const who=()=>(me&&me.email||"").replace(/@snaplog\.(app|online)$/i,"");
 function busy(m){const b=$("#busy");b.style.display=m?"block":"none";if(m)b.textContent=m}
 window.addEventListener("unhandledrejection",e=>{busy(false);alert("Something went wrong: "+((e.reason&&e.reason.message)||e.reason))});
 const safe=s=>String(s||"").replace(/[\\/:*?"<>|\u0000-\u001f]+/g,"").trim().slice(0,60)||"untitled";
@@ -798,7 +798,10 @@ $("#lbtn").onclick=async()=>{
   const u=$("#lu").value.trim().toLowerCase().replace(/\s+/g,""),p=$("#lp").value;
   if(!u||!p)return;
   $("#lerr").textContent="";busy("Logging in…");
-  const r=await sb.auth.signInWithPassword({email:u.includes("@")?u:u+DOMAIN,password:p});busy(false);
+  let r;
+  if(u.includes("@"))r=await sb.auth.signInWithPassword({email:u,password:p});
+  else{for(const d of DOMAINS){r=await sb.auth.signInWithPassword({email:u+d,password:p});if(!r.error)break}}
+  busy(false);
   if(r.error){$("#lerr").textContent="Wrong name or password.";return}
   await afterLogin(r.data.user);
 };
