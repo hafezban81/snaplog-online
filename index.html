@@ -131,6 +131,7 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
     <label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:14px;margin-top:14px"><input type="checkbox" id="optStamp"> Show date &amp; time (photos, PDF report, Word)</label>
     <div class="acts" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
       <button class="btn" id="fullbk" style="display:none">💾 Full backup (zip)</button>
+      <button class="btn" id="trashbtn" style="display:none">🗑 Trash (restore projects)</button>
       <button class="btn" id="jsonbk" style="display:none">⬇ Backup data (.json)</button>
       <label class="btn" style="margin:0;color:var(--ink)">⬆ Import / restore (.json)<input type="file" id="jsonin" accept=".json,application/json" style="display:none"></label>
       <button class="btn" id="logout">Log out</button>
@@ -245,7 +246,7 @@ async function home(){
   $("#back").style.display="none";$("#title").textContent="SnapLog Online";
   $("#fab").style.display="";$("#fab").textContent="＋ New project";
   busy("Loading…");
-  const ps=J(await sb.from("snaplog_projects").select("id,name,created_at,snaplog_items(id,snaplog_photos(kind))").order("created_at",{ascending:false}));
+  const ps=J(await sb.from("snaplog_projects").select("id,name,created_at,snaplog_items(id,snaplog_photos(kind))").is("deleted_at",null).order("created_at",{ascending:false}));
   busy(false);
   let h="";
   if(!ps.length)h='<div class="empty">No projects yet.<br>Tap <b>＋ New project</b> to start.</div>';
@@ -333,8 +334,8 @@ function bindProject(){
     await loadItems();busy(false);renderProject();});
   const r=$("#ren");if(r)r.onclick=async()=>{const n=await ask("Project name",proj.name);if(n){J(await sb.from("snaplog_projects").update({name:n}).eq("id",proj.id));proj.name=n;renderProject()}};
   const dp=$("#delp");if(dp)dp.onclick=async()=>{
-    if(!confirm('Delete project "'+proj.name+'" and ALL its photos?'))return;
-    busy("Deleting…");await removeFiles(pathsOf(items));J(await sb.from("snaplog_projects").delete().eq("id",proj.id));busy(false);home();};
+    if(!confirm('Move project "'+proj.name+'" to the Trash? Only the admin can restore it.'))return;
+    busy("Deleting…");try{J(await sb.from("snaplog_projects").update({deleted_at:new Date().toISOString()}).eq("id",proj.id))}finally{busy(false)}home();};
   const bk=$("#bkpp");if(bk)bk.onclick=()=>fullBackup(proj);
   const jp=$("#jsonp");if(jp)jp.onclick=()=>exportJson(proj);
   const rp=$("#rep");if(rp)rp.onclick=report;
@@ -623,7 +624,7 @@ async function fullBackup(only){
   const files=[],names=new Set();
   try{
     busy("Preparing…");
-    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name").order("created_at"));
+    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name").is("deleted_at",null).order("created_at"));
     let pi=0;
     for(const pr of prs){
       pi++;
@@ -664,7 +665,7 @@ $("#fab").onclick=async()=>{
   }};
 $("#menuBtn").onclick=()=>{
   $("#optSize").value=String(cfg.size);$("#optStamp").checked=cfg.stamp;$("#optX").value=cfg.xlabel;$("#optB").value=cfg.bl;$("#optA").value=cfg.al;
-  $("#who").textContent="Logged in as "+who();$("#fullbk").style.display="";$("#jsonin").parentElement.style.display=isAdmin?"":"none";$("#jsonbk").style.display=isAdmin?"":"none";
+  $("#who").textContent="Logged in as "+who();$("#fullbk").style.display="";$("#jsonin").parentElement.style.display=isAdmin?"":"none";$("#jsonbk").style.display=isAdmin?"":"none";$("#trashbtn").style.display=isAdmin?"":"none";
   $("#menu").classList.add("on");
 };
 $("#menuClose").onclick=()=>{
@@ -684,7 +685,7 @@ async function exportJson(only){
   if(!confirm(only?"Download this project as a .json data file?":"Download ALL projects as one .json data file? Large backups can take a few minutes."))return;
   try{
     busy("Preparing…");
-    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name,created_at").order("created_at"));
+    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name,created_at").is("deleted_at",null).order("created_at"));
     const projects=prs.map(p=>({id:p.id,name:p.name,created:p.created_at?new Date(p.created_at).getTime():Date.now()}));
     const parts=['{"v":1,"projects":'+JSON.stringify(projects)+',"items":['];
     let first=true,pi=0;
@@ -736,6 +737,24 @@ async function importJson(file){
   alert("Import finished: "+done+" photo(s) added.");
   home();
 }
+async function trash(){
+  if(!isAdmin)return;
+  view="trash";$("#back").style.display="";$("#title").textContent="Trash";$("#fab").style.display="none";
+  busy("Loading…");
+  const ps=J(await sb.from("snaplog_projects").select("id,name,deleted_at").not("deleted_at","is",null).order("deleted_at",{ascending:false}));
+  busy(false);
+  let h='<div class="foot" style="margin:6px 0 12px">Deleted projects. Restore them, or delete forever to free storage.</div>';
+  if(!ps.length)h+='<div class="empty">The Trash is empty.</div>';
+  for(const p of ps)h+=`<div class="card" style="display:block"><div class="n">${esc(p.name)}</div><div class="m">Deleted ${new Date(p.deleted_at).toLocaleString()}</div>
+    <div style="display:flex;gap:8px;margin-top:8px"><button class="btn sm primary" data-r="${p.id}">Restore</button><button class="btn sm danger" data-x="${p.id}">Delete forever</button></div></div>`;
+  $("#main").innerHTML=h;
+  document.querySelectorAll("[data-r]").forEach(b=>b.onclick=async()=>{busy("Restoring…");try{J(await sb.from("snaplog_projects").update({deleted_at:null}).eq("id",b.dataset.r))}finally{busy(false)}trash()});
+  document.querySelectorAll("[data-x]").forEach(b=>b.onclick=async()=>{
+    const p=ps.find(x=>x.id===b.dataset.x);
+    if(!confirm('Permanently delete "'+p.name+'" and all its photos? This cannot be undone.'))return;
+    busy("Deleting…");try{const its=await fetchItems(p.id);await removeFiles(pathsOf(its));J(await sb.from("snaplog_projects").delete().eq("id",p.id))}finally{busy(false)}trash()});
+}
+$("#trashbtn").onclick=()=>{$("#menu").classList.remove("on");trash()};
 $("#jsonbk").onclick=()=>{$("#menu").classList.remove("on");exportJson()};
 $("#jsonin").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;$("#menu").classList.remove("on");await importJson(f)};
 
