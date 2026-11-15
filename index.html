@@ -131,6 +131,7 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
     <label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:14px;margin-top:14px"><input type="checkbox" id="optStamp"> Show date &amp; time (photos, PDF report, Word)</label>
     <div class="acts" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
       <button class="btn" id="fullbk" style="display:none">💾 Full backup (zip)</button>
+      <button class="btn" id="logbtn" style="display:none">📜 Activity log</button>
       <button class="btn" id="trashbtn" style="display:none">🗑 Trash (restore projects)</button>
       <button class="btn" id="jsonbk" style="display:none">⬇ Backup data (.json)</button>
       <label class="btn" style="margin:0;color:var(--ink)">⬆ Import / restore (.json)<input type="file" id="jsonin" accept=".json,application/json" style="display:none"></label>
@@ -183,18 +184,21 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-15.4";
+const APP_VER="2026-11-15.5";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
 const sb=window.supabase.createClient(SB_URL,SB_KEY);
 let me=null,isAdmin=false;
 const J=r=>{if(r.error)throw r.error;return r.data};
+function logAct(action,detail){try{Promise.resolve(sb.from("snaplog_log").insert({action,detail:detail||""})).catch(()=>{})}catch{}}
+const iname=i=>(i&&i.name)||"(unnamed item)";
+const kname=k=>k==="before"?cfg.bl:k==="after"?cfg.al:cfg.xlabel;
 const who=()=>(me&&me.email||"").replace(/@snaplog\.(app|online)$/i,"");
 function busy(m){const b=$("#busy");b.style.display=m?"block":"none";if(m)b.textContent=m}
 window.addEventListener("unhandledrejection",e=>{busy(false);alert("Something went wrong: "+((e.reason&&e.reason.message)||e.reason))});
 const safe=s=>String(s||"").replace(/[\\/:*?"<>|\u0000-\u001f]+/g,"").trim().slice(0,60)||"untitled";
-function dl(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),60000)}
+function dl(blob,name){logAct("Downloaded file",name);const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),60000)}
 async function signedUrls(paths){
   const uniq=[...new Set(paths.filter(Boolean))],m={};
   for(let k=0;k<uniq.length;k+=100){
@@ -327,18 +331,18 @@ function bindProject(){
   m.querySelectorAll("[data-f].chip").forEach(b=>b.onclick=()=>{filter=b.dataset.f;renderProject()});
   m.querySelectorAll("textarea").forEach(t=>{
     const grow=()=>{t.style.height="auto";t.style.height=t.scrollHeight+"px"};grow();t.oninput=grow;
-    t.onchange=async()=>{const i=items.find(x=>x.id===t.dataset.i);i[t.dataset.f]=t.value.trim();J(await sb.from("snaplog_items").update({[t.dataset.f]:i[t.dataset.f]}).eq("id",i.id))};});
+    t.onchange=async()=>{const i=items.find(x=>x.id===t.dataset.i);const oldv=i[t.dataset.f];i[t.dataset.f]=t.value.trim();J(await sb.from("snaplog_items").update({[t.dataset.f]:i[t.dataset.f]}).eq("id",i.id));if(t.dataset.f==="name"&&oldv!==i.name)logAct("Renamed item",proj.name+": "+(oldv||"(blank)")+" → "+(i.name||"(blank)"))};});
   m.querySelectorAll("input[type=file]").forEach(inp=>inp.onchange=()=>addPhotos(inp));
   m.querySelectorAll(".thumbs img,.one img").forEach(im=>im.onclick=()=>openViewer(im.dataset.i,im.dataset.k,+im.dataset.n));
   m.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{
     if(!confirm("Delete this item and its photos?"))return;
     busy("Deleting…");const it=items.find(x=>x.id===b.dataset.del);
-    await removeFiles(pathsOf([it]));J(await sb.from("snaplog_items").delete().eq("id",it.id));
+    await removeFiles(pathsOf([it]));J(await sb.from("snaplog_items").delete().eq("id",it.id));logAct("Deleted item",proj.name+": "+iname(it));
     await loadItems();busy(false);renderProject();});
-  const r=$("#ren");if(r)r.onclick=async()=>{const n=await ask("Project name",proj.name);if(n){J(await sb.from("snaplog_projects").update({name:n}).eq("id",proj.id));proj.name=n;renderProject()}};
+  const r=$("#ren");if(r)r.onclick=async()=>{const n=await ask("Project name",proj.name);if(n){J(await sb.from("snaplog_projects").update({name:n}).eq("id",proj.id));logAct("Renamed project",proj.name+" → "+n);proj.name=n;renderProject()}};
   const dp=$("#delp");if(dp)dp.onclick=async()=>{
     if(!confirm('Move project "'+proj.name+'" to the Trash? Only the admin can restore it.'))return;
-    busy("Deleting…");try{J(await sb.from("snaplog_projects").update({deleted_at:new Date().toISOString()}).eq("id",proj.id))}finally{busy(false)}home();};
+    busy("Deleting…");try{J(await sb.from("snaplog_projects").update({deleted_at:new Date().toISOString()}).eq("id",proj.id));logAct("Moved project to Trash",proj.name)}finally{busy(false)}home();};
   const bk=$("#bkpp");if(bk)bk.onclick=()=>fullBackup(proj);
   const jp=$("#jsonp");if(jp)jp.onclick=()=>exportJson(proj);
   const rp=$("#rep");if(rp)rp.onclick=report;
@@ -360,7 +364,7 @@ async function addPhotos(inp){
     for(const f of files){
       const blob=await compress(f),id=uid(),path=`${proj.id}/${i.id}/${id}.jpg`;
       J(await sb.storage.from(BUCKET).upload(path,blob,{contentType:"image/jpeg"}));
-      J(await sb.from("snaplog_photos").insert({id,item_id:i.id,kind:k,path}));
+      J(await sb.from("snaplog_photos").insert({id,item_id:i.id,kind:k,path}));logAct(old.length?"Replaced photo":"Added photo",proj.name+": "+iname(i)+" ("+kname(k)+")");
     }
     for(const p of old){await removeFiles([p.path,p.o]);J(await sb.from("snaplog_photos").delete().eq("id",p.id))}
     await loadItems();
@@ -382,12 +386,12 @@ $("#vedit").onclick=async()=>{
   const v=await ask("Photo date & time",toLocalInput(p.t),"datetime-local");
   if(!v)return;
   const t=new Date(v).getTime();if(isNaN(t))return;
-  J(await sb.from("snaplog_photos").update({created_at:new Date(t).toISOString()}).eq("id",p.id));p.t=t;openViewer(viewing.id,viewing.k,viewing.n);renderProject();};
+  J(await sb.from("snaplog_photos").update({created_at:new Date(t).toISOString()}).eq("id",p.id));logAct("Changed photo date/time",proj.name+": "+iname(items.find(x=>x.id===viewing.id))+" ("+kname(viewing.k)+")");p.t=t;openViewer(viewing.id,viewing.k,viewing.n);renderProject();};
 $("#vdel").onclick=async()=>{
   if(!confirm("Delete this photo?"))return;
   const i=items.find(x=>x.id===viewing.id),p=i[viewing.k][viewing.n];
   busy("Deleting…");
-  try{await removeFiles([p.path,p.o]);J(await sb.from("snaplog_photos").delete().eq("id",p.id));await loadItems()}finally{busy(false)}
+  try{await removeFiles([p.path,p.o]);J(await sb.from("snaplog_photos").delete().eq("id",p.id));logAct("Deleted photo",proj.name+": "+iname(i)+" ("+kname(viewing.k)+")");await loadItems()}finally{busy(false)}
   $("#viewer").classList.remove("on");renderProject();};
 
 /* ---------- photo mark-up (original is kept, marks are removable) ---------- */
@@ -525,6 +529,7 @@ async function openEditor(id,k,n){
         J(await sb.from("snaplog_photos").update({path:np,orig_path:p.o||p.path,marks:e.shapes}).eq("id",p.id));
         if(p.o)await removeFiles([p.path]);
       }
+      logAct("Marked up photo",proj.name+": "+iname(e.i)+" ("+kname(e.k)+")");
       await loadItems();
     }finally{busy(false)}
     $("#editor").classList.remove("on");renderProject();openViewer(e.id,e.k,e.n);
@@ -660,15 +665,15 @@ $("#back").onclick=()=>{if(view==="report")renderProject();else home()};
 $("#fab").onclick=async()=>{
   if(view==="home"){
     const n=await ask("New project name");if(!n)return;
-    busy("Creating…");const p=J(await sb.from("snaplog_projects").insert({name:n}).select("id,name").single());busy(false);openProject(p.id);
+    busy("Creating…");const p=J(await sb.from("snaplog_projects").insert({name:n}).select("id,name").single());logAct("Created project",n);busy(false);openProject(p.id);
   }else if(view==="proj"){
-    busy("Adding…");const r=J(await sb.from("snaplog_items").insert({project_id:proj.id,position:Date.now()}).select("id").single());
+    busy("Adding…");const r=J(await sb.from("snaplog_items").insert({project_id:proj.id,position:Date.now()}).select("id").single());logAct("Added item",proj.name);
     filter="all";await loadItems();busy(false);renderProject();
     const t=document.querySelector(`textarea[data-i="${r.id}"]`);if(t){t.scrollIntoView({block:"center"});t.focus()}
   }};
 $("#menuBtn").onclick=()=>{
   $("#optSize").value=String(cfg.size);$("#optStamp").checked=cfg.stamp;$("#optX").value=cfg.xlabel;$("#optB").value=cfg.bl;$("#optA").value=cfg.al;
-  $("#who").textContent="Logged in as "+who();$("#fullbk").style.display="";$("#jsonin").parentElement.style.display=isAdmin?"":"none";$("#jsonbk").style.display=isAdmin?"":"none";$("#trashbtn").style.display=isAdmin?"":"none";
+  $("#who").textContent="Logged in as "+who();$("#fullbk").style.display="";$("#jsonin").parentElement.style.display=isAdmin?"":"none";$("#jsonbk").style.display=isAdmin?"":"none";$("#trashbtn").style.display=isAdmin?"":"none";$("#logbtn").style.display=isAdmin?"":"none";
   $("#menu").classList.add("on");
 };
 $("#menuClose").onclick=()=>{
@@ -689,7 +694,7 @@ $("#chgpw").onclick=async()=>{
   const b=await ask("Type the new password again","","password");if(!b)return;
   if(a!==b){alert("The two passwords did not match. Nothing was changed.");return}
   busy("Saving…");
-  try{const r=await sb.auth.updateUser({password:a});if(r.error)throw r.error;alert("Password changed. Use the new password next time you log in.")}
+  try{const r=await sb.auth.updateUser({password:a});if(r.error)throw r.error;logAct("Changed own password","");alert("Password changed. Use the new password next time you log in.")}
   catch(e){alert("Could not change password: "+(e.message||e))}
   finally{busy(false)}
 };
@@ -767,6 +772,7 @@ async function importJson(file){
       }
     }
   }finally{busy(false)}
+  logAct("Imported data",d.projects.length+" project(s), "+done+" photo(s)");
   alert("Import finished: "+done+" photo(s) added.");
   home();
 }
@@ -781,12 +787,29 @@ async function trash(){
   for(const p of ps)h+=`<div class="card" style="display:block"><div class="n">${esc(p.name)}</div><div class="m">Deleted ${new Date(p.deleted_at).toLocaleString()}</div>
     <div style="display:flex;gap:8px;margin-top:8px"><button class="btn sm primary" data-r="${p.id}">Restore</button><button class="btn sm danger" data-x="${p.id}">Delete forever</button></div></div>`;
   $("#main").innerHTML=h;
-  document.querySelectorAll("[data-r]").forEach(b=>b.onclick=async()=>{busy("Restoring…");try{J(await sb.from("snaplog_projects").update({deleted_at:null}).eq("id",b.dataset.r))}finally{busy(false)}trash()});
+  document.querySelectorAll("[data-r]").forEach(b=>b.onclick=async()=>{busy("Restoring…");try{J(await sb.from("snaplog_projects").update({deleted_at:null}).eq("id",b.dataset.r));logAct("Restored project",(ps.find(x=>x.id===b.dataset.r)||{}).name)}finally{busy(false)}trash()});
   document.querySelectorAll("[data-x]").forEach(b=>b.onclick=async()=>{
     const p=ps.find(x=>x.id===b.dataset.x);
     if(!confirm('Permanently delete "'+p.name+'" and all its photos? This cannot be undone.'))return;
-    busy("Deleting…");try{const its=await fetchItems(p.id);await removeFiles(pathsOf(its));J(await sb.from("snaplog_projects").delete().eq("id",p.id))}finally{busy(false)}trash()});
+    busy("Deleting…");try{const its=await fetchItems(p.id);await removeFiles(pathsOf(its));J(await sb.from("snaplog_projects").delete().eq("id",p.id));logAct("Deleted project forever",p.name)}finally{busy(false)}trash()});
 }
+let logPerson="";
+async function activity(){
+  if(!isAdmin)return;
+  view="log";$("#back").style.display="";$("#title").textContent="Activity log";$("#fab").style.display="none";
+  busy("Loading…");
+  let rows;try{rows=J(await sb.from("snaplog_log").select("at,who,action,detail").order("at",{ascending:false}).limit(300))}catch(e){busy(false);$("#main").innerHTML='<div class="empty">The activity log is not set up yet.<br>Run the log SQL in Supabase first.</div>';return}
+  busy(false);
+  const nm=w=>(w||"").replace(/@snaplog\.(app|online)$/i,"");
+  const people=[...new Set(rows.map(r=>nm(r.who)))].sort();
+  const shown=logPerson?rows.filter(r=>nm(r.who)===logPerson):rows;
+  let h=`<div class="foot" style="margin:6px 0 10px">Latest 300 actions.</div><select id="logsel" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font:inherit;margin-bottom:10px"><option value="">Everyone</option>${people.map(x=>`<option${x===logPerson?" selected":""}>${esc(x)}</option>`).join("")}</select>`;
+  if(!shown.length)h+='<div class="empty">No activity yet.</div>';
+  for(const r of shown)h+=`<div class="card" style="display:block;padding:10px 12px"><div class="n" style="font-size:14px">${esc(r.action)}</div>${r.detail?`<div class="m">${esc(r.detail)}</div>`:""}<div class="m" style="margin-top:2px">${esc(nm(r.who))} · ${new Date(r.at).toLocaleString()}</div></div>`;
+  $("#main").innerHTML=h;
+  $("#logsel").onchange=e=>{logPerson=e.target.value;activity()};
+}
+$("#logbtn").onclick=()=>{$("#menu").classList.remove("on");logPerson="";activity()};
 $("#trashbtn").onclick=()=>{$("#menu").classList.remove("on");trash()};
 $("#jsonbk").onclick=()=>{$("#menu").classList.remove("on");exportJson()};
 $("#jsonin").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;$("#menu").classList.remove("on");await importJson(f)};
@@ -802,8 +825,10 @@ $("#lbtn").onclick=async()=>{
   if(u.includes("@"))r=await sb.auth.signInWithPassword({email:u,password:p});
   else{for(const d of DOMAINS){r=await sb.auth.signInWithPassword({email:u+d,password:p});if(!r.error)break}}
   busy(false);
+  const okLogin=!r.error;
   if(r.error){$("#lerr").textContent="Wrong name or password.";return}
   await afterLogin(r.data.user);
+  if(okLogin)logAct("Logged in","");
 };
 $("#lp").onkeydown=e=>{if(e.key==="Enter")$("#lbtn").click()};
 (async()=>{
