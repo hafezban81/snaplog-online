@@ -131,6 +131,8 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
     <label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:14px;margin-top:14px"><input type="checkbox" id="optStamp"> Show date &amp; time (photos, PDF report, Word)</label>
     <div class="acts" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
       <button class="btn" id="fullbk" style="display:none">💾 Full backup (zip)</button>
+      <button class="btn" id="jsonbk" style="display:none">⬇ Backup data (.json)</button>
+      <label class="btn" style="margin:0;color:var(--ink)">⬆ Import / restore (.json)<input type="file" id="jsonin" accept=".json,application/json" style="display:none"></label>
       <button class="btn" id="logout">Log out</button>
     </div>
     <div class="dt" id="who" style="margin-top:10px"></div>
@@ -201,7 +203,7 @@ async function fetchItems(pid){
   const rows=J(await sb.from("snaplog_items").select("id,name,notes,position,snaplog_photos(id,kind,path,orig_path,marks,created_at)").eq("project_id",pid).order("position"));
   const urls=await signedUrls(rows.flatMap(r=>r.snaplog_photos.map(p=>p.path)));
   return rows.map(r=>{
-    const it={id:r.id,name:r.name||"",notes:r.notes||"",before:[],after:[],extra:[]};
+    const it={id:r.id,position:r.position,name:r.name||"",notes:r.notes||"",before:[],after:[],extra:[]};
     r.snaplog_photos.slice().sort((a,b)=>a.created_at<b.created_at?-1:a.created_at>b.created_at?1:0).forEach(p=>{
       if(it[p.kind])it[p.kind].push({id:p.id,path:p.path,d:urls[p.path]||"",o:p.orig_path||undefined,m:p.marks||undefined,t:new Date(p.created_at).getTime()});
     });
@@ -296,7 +298,7 @@ function renderProject(){
   const list=items.filter(i=>filter==="all"||(filter==="wait"&&i.before.length&&!i.after.length)||(filter==="done"&&i.before.length&&i.after.length));
   let h=`<div class="noprint" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
     <span style="color:var(--mute);font-size:13px;flex:1">${items.length} items · ${nb} ${esc(cfg.bl.toLowerCase())} · ${na} ${esc(cfg.al.toLowerCase())}</span>
-    <button class="btn sm" id="ren">Rename</button><button class="btn sm" id="rep">📄 Report / PDF</button><button class="btn sm" id="wrd">📝 Word</button>${isAdmin?`<button class="btn sm" id="bkpp">💾 Backup</button><button class="btn sm danger" id="delp">Delete</button>`:""}</div>
+    <button class="btn sm" id="ren">Rename</button><button class="btn sm" id="rep">📄 Report / PDF</button><button class="btn sm" id="wrd">📝 Word</button>${isAdmin?`<button class="btn sm" id="bkpp">💾 Backup</button><button class="btn sm" id="jsonp">⬇ JSON</button><button class="btn sm danger" id="delp">Delete</button>`:""}</div>
   <div class="chips noprint">
     <button class="chip ${filter==="all"?"on":""}" data-f="all">All (${items.length})</button>
     <button class="chip ${filter==="wait"?"on":""}" data-f="wait">Need ${esc(cfg.al.toLowerCase())} photo (${items.filter(i=>i.before.length&&!i.after.length).length})</button>
@@ -334,6 +336,7 @@ function bindProject(){
     if(!confirm('Delete project "'+proj.name+'" and ALL its photos?'))return;
     busy("Deleting…");await removeFiles(pathsOf(items));J(await sb.from("snaplog_projects").delete().eq("id",proj.id));busy(false);home();};
   const bk=$("#bkpp");if(bk)bk.onclick=()=>fullBackup(proj);
+  const jp=$("#jsonp");if(jp)jp.onclick=()=>exportJson(proj);
   const rp=$("#rep");if(rp)rp.onclick=report;
   const wr=$("#wrd");if(wr)wr.onclick=exportDocx;
 }
@@ -662,7 +665,7 @@ $("#fab").onclick=async()=>{
   }};
 $("#menuBtn").onclick=()=>{
   $("#optSize").value=String(cfg.size);$("#optStamp").checked=cfg.stamp;$("#optX").value=cfg.xlabel;$("#optB").value=cfg.bl;$("#optA").value=cfg.al;
-  $("#who").textContent="Logged in as "+who();$("#fullbk").style.display=isAdmin?"":"none";
+  $("#who").textContent="Logged in as "+who();$("#fullbk").style.display=isAdmin?"":"none";$("#jsonbk").style.display=isAdmin?"":"none";
   $("#menu").classList.add("on");
 };
 $("#menuClose").onclick=()=>{
@@ -673,6 +676,69 @@ $("#menuClose").onclick=()=>{
 $("#fullbk").onclick=()=>{$("#menu").classList.remove("on");fullBackup()};
 $("#logout").onclick=async()=>{$("#menu").classList.remove("on");await sb.auth.signOut()};
 $("#viewer").onclick=e=>{if(e.target.id==="viewer")$("#viewer").classList.remove("on")};
+
+/* ---------- JSON backup / import (same format as the phone version) ---------- */
+const blobToDataURL=b=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(r.error);r.readAsDataURL(b)});
+const dlb=async path=>J(await sb.storage.from(BUCKET).download(path));
+async function exportJson(only){
+  if(!isAdmin)return;
+  if(!confirm(only?"Download this project as a .json data file?":"Download ALL projects as one .json data file? Large backups can take a few minutes."))return;
+  try{
+    busy("Preparing…");
+    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name,created_at").order("created_at"));
+    const projects=prs.map(p=>({id:p.id,name:p.name,created:p.created_at?new Date(p.created_at).getTime():Date.now()}));
+    const parts=['{"v":1,"projects":'+JSON.stringify(projects)+',"items":['];
+    let first=true,pi=0;
+    for(const pr of prs){
+      pi++;
+      const its=await fetchItems(pr.id);
+      for(const [idx,i] of its.entries()){
+        busy(`Project ${pi}/${prs.length} – item ${idx+1}/${its.length}`);
+        const conv=async p=>{const q={d:await blobToDataURL(await dlb(p.path)),t:p.t};if(p.o){q.o=await blobToDataURL(await dlb(p.o));q.m=p.m}return q};
+        const o={id:i.id,projectId:pr.id,order:i.position,name:i.name,notes:i.notes,before:[],after:[],extra:[]};
+        for(const k of ["before","after","extra"])for(const p of i[k])o[k].push(await conv(p));
+        parts.push((first?"":",")+JSON.stringify(o));first=false;
+      }
+    }
+    parts.push("]}");
+    dl(new Blob(parts,{type:"application/json"}),(only?safe(only.name)+" - ":"SnapLog data ")+new Date().toISOString().slice(0,10)+".json");
+  }finally{busy(false)}
+}
+async function importJson(file){
+  let d;
+  try{d=JSON.parse(await file.text())}catch{alert("That file is not a valid SnapLog backup.");return}
+  if(!d||!Array.isArray(d.projects)||!Array.isArray(d.items)){alert("That file is not a valid SnapLog backup.");return}
+  const KINDS=["before","after","extra"];
+  const nPh=d.items.reduce((a,i)=>a+KINDS.reduce((s,k)=>s+((i[k]||[]).length),0),0);
+  if(!confirm(`Import ${d.projects.length} project(s), ${d.items.length} item(s) and ${nPh} photo(s)?\nThey will be added as NEW projects (nothing is overwritten).`))return;
+  let done=0;
+  const up=async(dataUrl,pth)=>J(await sb.storage.from(BUCKET).upload(pth,await (await fetch(dataUrl)).blob(),{contentType:"image/jpeg"}));
+  try{
+    for(const p of d.projects){
+      busy("Importing "+(p.name||"project")+"…");
+      const np=J(await sb.from("snaplog_projects").insert({name:p.name||"Imported project",created_at:new Date(p.created||Date.now()).toISOString()}).select("id").single());
+      const its=d.items.filter(i=>i.projectId===p.id).sort((a,b)=>(a.order||0)-(b.order||0));
+      for(const [idx,i] of its.entries()){
+        const ni=J(await sb.from("snaplog_items").insert({project_id:np.id,position:Date.now()+idx,name:i.name||"",notes:i.notes||""}).select("id").single());
+        for(const kind of KINDS){
+          for(const q of (i[kind]||[])){
+            if(!q||!q.d)continue;
+            const id=uid(),path=`${np.id}/${ni.id}/${id}.jpg`;
+            let orig=null;
+            if(q.o){orig=`${np.id}/${ni.id}/${id}-o.jpg`;await up(q.o,orig)}
+            await up(q.d,path);
+            J(await sb.from("snaplog_photos").insert({id,item_id:ni.id,kind,path,orig_path:orig,marks:q.o&&q.m?q.m:null,created_at:new Date(q.t||Date.now()).toISOString()}));
+            done++;busy(`Importing photo ${done}/${nPh}…`);
+          }
+        }
+      }
+    }
+  }finally{busy(false)}
+  alert("Import finished: "+done+" photo(s) added.");
+  home();
+}
+$("#jsonbk").onclick=()=>{$("#menu").classList.remove("on");exportJson()};
+$("#jsonin").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;$("#menu").classList.remove("on");await importJson(f)};
 
 /* ---------- login + start ---------- */
 function showLogin(){me=null;isAdmin=false;$("#login").classList.add("on");$("#main").innerHTML="";$("#fab").style.display="none";$("#back").style.display="none";$("#lp").value=""}
