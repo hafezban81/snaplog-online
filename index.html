@@ -298,7 +298,7 @@ function renderProject(){
   const list=items.filter(i=>filter==="all"||(filter==="wait"&&i.before.length&&!i.after.length)||(filter==="done"&&i.before.length&&i.after.length));
   let h=`<div class="noprint" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
     <span style="color:var(--mute);font-size:13px;flex:1">${items.length} items · ${nb} ${esc(cfg.bl.toLowerCase())} · ${na} ${esc(cfg.al.toLowerCase())}</span>
-    <button class="btn sm" id="ren">Rename</button><button class="btn sm" id="rep">📄 Report / PDF</button><button class="btn sm" id="wrd">📝 Word</button>${isAdmin?`<button class="btn sm" id="bkpp">💾 Backup</button><button class="btn sm" id="jsonp">⬇ JSON</button><button class="btn sm danger" id="delp">Delete</button>`:""}</div>
+    <button class="btn sm" id="ren">Rename</button><button class="btn sm" id="rep">📄 Report / PDF</button><button class="btn sm" id="wrd">📝 Word</button><button class="btn sm" id="bkpp">💾 Backup</button>${isAdmin?`<button class="btn sm" id="jsonp">⬇ JSON</button><button class="btn sm danger" id="delp">Delete</button>`:""}</div>
   <div class="chips noprint">
     <button class="chip ${filter==="all"?"on":""}" data-f="all">All (${items.length})</button>
     <button class="chip ${filter==="wait"?"on":""}" data-f="wait">Need ${esc(cfg.al.toLowerCase())} photo (${items.filter(i=>i.before.length&&!i.after.length).length})</button>
@@ -619,7 +619,6 @@ async function exportDocx(){busy("Building Word file…");try{dl(await buildDocx
 
 /* ---------- Full backup (admin): folder per project, photos + originals + Word report ---------- */
 async function fullBackup(only){
-  if(!isAdmin)return;
   if(!confirm(only?"Download a backup of this project?":"Download a backup of ALL projects? This can take a few minutes – keep this page open."))return;
   const files=[],names=new Set();
   try{
@@ -665,7 +664,7 @@ $("#fab").onclick=async()=>{
   }};
 $("#menuBtn").onclick=()=>{
   $("#optSize").value=String(cfg.size);$("#optStamp").checked=cfg.stamp;$("#optX").value=cfg.xlabel;$("#optB").value=cfg.bl;$("#optA").value=cfg.al;
-  $("#who").textContent="Logged in as "+who();$("#fullbk").style.display=isAdmin?"":"none";$("#jsonbk").style.display=isAdmin?"":"none";
+  $("#who").textContent="Logged in as "+who();$("#fullbk").style.display="";$("#jsonin").parentElement.style.display=isAdmin?"":"none";$("#jsonbk").style.display=isAdmin?"":"none";
   $("#menu").classList.add("on");
 };
 $("#menuClose").onclick=()=>{
