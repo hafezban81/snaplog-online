@@ -8,11 +8,11 @@
 <meta name="apple-mobile-web-app-title" content="SnapLog Online">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-:root{--bg:#eef5f1;--card:#fff;--ink:#1d2433;--mute:#6b7385;--line:#dfe3ea;--brand:#0b7a55;--ok:#1a8f4c;--warn:#c77700;--bad:#c62828}
+:root{--bg:#eef1f8;--card:#fff;--ink:#1d2433;--mute:#6b7385;--line:#dfe3ea;--brand:#1b3a8c;--ok:#1a8f4c;--warn:#c77700;--bad:#c62828}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
 button{font:inherit;cursor:pointer}
-header.top{position:sticky;top:0;z-index:20;background:#0b7a55;color:#fff;border-bottom:1px solid #086245;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;display:flex;align-items:center;gap:8px}
+header.top{position:sticky;top:0;z-index:20;background:#1b3a8c;color:#fff;border-bottom:1px solid #12296a;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;display:flex;align-items:center;gap:8px}
 header.top h1{font-size:17px;margin:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .btn{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:8px 12px;color:var(--ink)}
 .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
@@ -47,7 +47,7 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
 .thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:5px}
 .thumbs img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:1px solid var(--line);display:block}
 .add{display:flex;gap:5px;margin-top:6px}
-.add label{flex:1;text-align:center;border:1px dashed #9aa3b5;border-radius:8px;padding:9px 4px;font-size:13px;color:var(--brand);cursor:pointer;background:#f1faf5}
+.add label{flex:1;text-align:center;border:1px dashed #9aa3b5;border-radius:8px;padding:9px 4px;font-size:13px;color:var(--brand);cursor:pointer;background:#f0f3fb}
 .add label.g{flex:0 0 38px;color:var(--mute)}
 .add input{display:none}
 .dt{font-size:11px;color:var(--mute);margin-top:4px}
@@ -95,7 +95,7 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
 <main id="main"></main>
 <button class="btn primary fab" id="fab">＋ New project</button>
 
-<div id="busy" style="display:none;position:fixed;left:0;right:0;top:0;z-index:90;background:#086245;color:#fff;padding:10px;text-align:center;font-size:14px"></div>
+<div id="busy" style="display:none;position:fixed;left:0;right:0;top:0;z-index:90;background:#12296a;color:#fff;padding:10px;text-align:center;font-size:14px"></div>
 
 <div class="modal" id="login" style="background:var(--bg);z-index:80">
   <div class="sheet" style="box-shadow:0 4px 20px rgba(0,0,0,.1)">
@@ -298,7 +298,7 @@ function renderProject(){
   const list=items.filter(i=>filter==="all"||(filter==="wait"&&i.before.length&&!i.after.length)||(filter==="done"&&i.before.length&&i.after.length));
   let h=`<div class="noprint" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
     <span style="color:var(--mute);font-size:13px;flex:1">${items.length} items · ${nb} ${esc(cfg.bl.toLowerCase())} · ${na} ${esc(cfg.al.toLowerCase())}</span>
-    <button class="btn sm" id="ren">Rename</button><button class="btn sm" id="rep">📄 Report / PDF</button><button class="btn sm" id="wrd">📝 Word</button><button class="btn sm" id="bkpp">💾 Backup</button>${isAdmin?`<button class="btn sm" id="jsonp">⬇ JSON</button><button class="btn sm danger" id="delp">Delete</button>`:""}</div>
+    <button class="btn sm" id="ren">Rename</button><button class="btn sm" id="rep">📄 Report / PDF</button><button class="btn sm" id="wrd">📝 Word</button><button class="btn sm" id="bkpp">💾 Backup</button>${isAdmin?`<button class="btn sm" id="jsonp">⬇ JSON</button>`:""}<button class="btn sm danger" id="delp">Delete</button></div>
   <div class="chips noprint">
     <button class="chip ${filter==="all"?"on":""}" data-f="all">All (${items.length})</button>
     <button class="chip ${filter==="wait"?"on":""}" data-f="wait">Need ${esc(cfg.al.toLowerCase())} photo (${items.filter(i=>i.before.length&&!i.after.length).length})</button>
