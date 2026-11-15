@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>SnapLog Online</title>
+<meta name="apple-mobile-web-app-title" content="SnapLog Online">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#eef1f8;--card:#fff;--ink:#1d2433;--mute:#6b7385;--line:#dfe3ea;--brand:#1b3a8c;--ok:#1a8f4c;--warn:#c77700;--bad:#c62828}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+button{font:inherit;cursor:pointer}
+header.top{position:sticky;top:0;z-index:20;background:#1b3a8c;color:#fff;border-bottom:1px solid #12296a;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;display:flex;align-items:center;gap:8px}
+header.top h1{font-size:17px;margin:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:8px 12px;color:var(--ink)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.danger{color:var(--bad)}
+.btn.sm{padding:5px 9px;font-size:13px}
+main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px}
+.proj{display:flex;align-items:center;gap:10px;padding:14px;margin-bottom:10px;cursor:pointer}
+.proj .n{font-weight:600;font-size:16px}
+.proj .m{color:var(--mute);font-size:13px;margin-top:2px}
+.proj .go{margin-left:auto;color:var(--mute);font-size:20px}
+.bar{height:6px;background:#e8ebf0;border-radius:3px;overflow:hidden;margin-top:8px;width:100%}
+.bar>i{display:block;height:100%;background:var(--ok)}
+.empty{text-align:center;color:var(--mute);padding:40px 10px}
+.chips{display:flex;gap:6px;margin:0 0 10px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:20px;padding:5px 12px;font-size:13px}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.grid-h,.row{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr);gap:0}
+.grid-h{position:sticky;top:calc(49px + env(safe-area-inset-top));z-index:10;background:#e9ecf2;border:1px solid var(--line);border-radius:12px 12px 0 0;font-weight:600;font-size:13px;color:var(--mute)}
+.grid-h>div{padding:8px 10px}
+.row{background:var(--card);border:1px solid var(--line);border-top:0}
+.row:last-child{border-radius:0 0 12px 12px}
+.row>div{padding:8px;border-right:1px solid var(--line);min-width:0}
+.row>div:last-child{border-right:0}
+.num{font-size:12px;color:var(--mute);display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.row textarea{width:100%;border:1px solid transparent;border-radius:6px;padding:4px 6px;font:inherit;resize:none;background:#f7f8fa;color:var(--ink);overflow:hidden}
+.row textarea:focus{outline:2px solid var(--brand);background:#fff}
+.row textarea.nm{font-weight:600}
+.row textarea.nt{font-size:13px;color:var(--mute);margin-top:4px}
+.st{display:inline-block;font-size:11px;border-radius:10px;padding:1px 7px;margin-top:4px}
+.st.w{background:#fff3e0;color:var(--warn)}.st.d{background:#e6f5ec;color:var(--ok)}.st.n{background:#eef0f4;color:var(--mute)}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:5px}
+.thumbs img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:1px solid var(--line);display:block}
+.add{display:flex;gap:5px;margin-top:6px}
+.add label{flex:1;text-align:center;border:1px dashed #9aa3b5;border-radius:8px;padding:9px 4px;font-size:13px;color:var(--brand);cursor:pointer;background:#f0f3fb}
+.add label.g{flex:0 0 38px;color:var(--mute)}
+.add input{display:none}
+.dt{font-size:11px;color:var(--mute);margin-top:4px}
+.fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom));z-index:15;box-shadow:0 4px 14px rgba(0,0,0,.2);border-radius:28px;padding:12px 22px}
+.modal{position:fixed;inset:0;background:rgba(10,14,22,.88);z-index:50;display:none;flex-direction:column;align-items:center;justify-content:center;padding:12px}
+.modal.on{display:flex}
+.modal img{max-width:100%;max-height:72vh;border-radius:8px}
+.modal .cap{color:#fff;margin:10px 0;text-align:center;font-size:14px}
+.modal .acts{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+#editor{padding:0;justify-content:flex-start;background:#0b0f18}
+.etb{display:flex;flex-wrap:wrap;gap:6px;padding:calc(8px + env(safe-area-inset-top)) 8px 6px;justify-content:center;width:100%;align-items:center}
+.etb .tool.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.cdot{width:32px;height:32px;border-radius:50%;border:3px solid rgba(255,255,255,.25);padding:0}.cdot.on{border-color:#fff}
+.ewrap{flex:1;display:flex;align-items:center;justify-content:center;width:100%;min-height:0}
+#ecan{touch-action:none;background:#000;border-radius:6px}
+.ebot{display:flex;gap:10px;padding:10px 8px calc(10px + env(safe-area-inset-bottom));width:100%;justify-content:center}
+.sheet{background:var(--card);border-radius:14px;padding:16px;width:min(420px,100%)}
+.sheet h3{margin:0 0 10px}
+.sheet label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
+.sheet input[type=text],.sheet input[type=password],.sheet input[type=datetime-local],.sheet select{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font:inherit}
+.sheet .acts{margin-top:14px;justify-content:flex-end}
+.foot{color:var(--mute);font-size:12px;text-align:center;margin-top:18px}
+#report{display:none}
+.rp-item{break-inside:avoid;border:1px solid #ccc;border-radius:8px;padding:10px;margin-bottom:12px;background:#fff}
+.rp-item h4{margin:0 0 6px}
+.rp-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rp-ex{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:4px}.rp-ex img{width:100%;border-radius:4px}
+.one img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;border:1px solid var(--line);display:block}
+.xtra{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)}
+.rp-cols b{font-size:12px;color:#555;display:block;margin-bottom:4px}
+.rp-cols img{width:100%;border-radius:4px;margin-bottom:4px;display:block}
+@page{size:A4;margin:0}
+@media print{
+  header.top,.fab,.noprint{display:none!important}
+  body{background:#fff}main{padding:14mm;max-width:none}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <button class="btn sm" id="back" style="display:none">‹ Back</button>
+  <h1 id="title">SnapLog Online</h1>
+  <button class="btn sm" id="menuBtn">⋯</button>
+</header>
+<main id="main"></main>
+<button class="btn primary fab" id="fab">＋ New project</button>
+
+<div id="busy" style="display:none;position:fixed;left:0;right:0;top:0;z-index:90;background:#12296a;color:#fff;padding:10px;text-align:center;font-size:14px"></div>
+
+<div class="modal" id="login" style="background:var(--bg);z-index:80">
+  <div class="sheet" style="box-shadow:0 4px 20px rgba(0,0,0,.1)">
+    <h3 style="color:var(--brand)">SnapLog Online</h3>
+    <label>Name</label><input type="text" id="lu" autocapitalize="none" autocorrect="off" autocomplete="username">
+    <label>Password</label><input type="password" id="lp" autocomplete="current-password">
+    <div id="lerr" style="color:var(--bad);font-size:13px;min-height:18px;margin-top:6px"></div>
+    <button class="btn primary" id="lbtn" style="width:100%;margin-top:6px">Log in</button>
+  </div>
+</div>
+
+<div class="modal" id="viewer">
+  <img id="vimg" alt="">
+  <div class="cap" id="vcap"></div>
+  <div class="acts"><button class="btn" id="vmark">✏️ Mark up</button><button class="btn" id="vedit">Edit date/time</button><button class="btn danger" id="vdel">Delete photo</button><button class="btn" id="vclose">Close</button></div>
+</div>
+
+<div class="modal" id="menu">
+  <div class="sheet">
+    <h3>Options</h3>
+    <label>Photo size (smaller = saves more space)</label>
+    <select id="optSize">
+      <option value="800">Small – 800 px (~60 KB)</option>
+      <option value="1024">Normal – 1024 px (~100 KB)</option>
+      <option value="1400">Good – 1400 px (~180 KB)</option>
+    </select>
+    <label>Name of first photo (default: Before)</label>
+    <input type="text" id="optB" maxlength="20">
+    <label>Name of second photo (default: After)</label>
+    <input type="text" id="optA" maxlength="20">
+    <label>Name of extra photos (default: Additional photos)</label>
+    <input type="text" id="optX" maxlength="30">
+    <label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:14px;margin-top:14px"><input type="checkbox" id="optStamp"> Show date &amp; time (photos, PDF report, Word)</label>
+    <div class="acts" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
+      <button class="btn" id="fullbk" style="display:none">💾 Full backup (zip)</button>
+      <button class="btn" id="trashbtn" style="display:none">🗑 Trash (restore projects)</button>
+      <button class="btn" id="jsonbk" style="display:none">⬇ Backup data (.json)</button>
+      <label class="btn" style="margin:0;color:var(--ink)">⬆ Import / restore (.json)<input type="file" id="jsonin" accept=".json,application/json" style="display:none"></label>
+      <button class="btn" id="logout">Log out</button>
+    </div>
+    <div class="dt" id="who" style="margin-top:10px"></div>
+    <div class="acts" style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn primary" id="menuClose">Done</button></div>
+  </div>
+</div>
+
+<div class="modal" id="editor">
+  <div class="etb">
+    <button class="btn sm tool on" data-tool="p">✏️ Draw</button>
+    <button class="btn sm tool" data-tool="o">◯ Circle</button>
+    <button class="btn sm tool" data-tool="a">➚ Arrow</button>
+    <button class="btn sm tool" data-tool="t">T Text</button>
+    <button class="btn sm tool" data-tool="m">☝ Move</button>
+    <button class="cdot on" data-c="#ff3b30" style="background:#ff3b30" aria-label="Red"></button>
+    <button class="cdot" data-c="#ffd60a" style="background:#ffd60a" aria-label="Yellow"></button>
+    <button class="cdot" data-c="#ffffff" style="background:#ffffff" aria-label="White"></button>
+    <button class="cdot" data-c="#0a84ff" style="background:#0a84ff" aria-label="Blue"></button>
+    <button class="btn sm" id="edel">🗑 Delete</button>
+    <button class="btn sm" id="eundo">↶ Undo</button>
+    <button class="btn sm" id="eclear">Clear all</button>
+  </div>
+  <div class="ewrap"><canvas id="ecan"></canvas></div>
+  <div class="ebot"><button class="btn" id="ecancel">Cancel</button><button class="btn primary" id="esave">Save</button></div>
+</div>
+
+<div class="modal" id="prompt">
+  <div class="sheet">
+    <h3 id="ptitle"></h3>
+    <input type="text" id="pinput" autocomplete="off">
+    <div class="acts" style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="pcancel">Cancel</button><button class="btn primary" id="pok">OK</button></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ---------- tiny helpers ---------- */
+const $=s=>document.querySelector(s);
+const uid=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt=t=>new Date(t).toLocaleString("en-SG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+const fmtD=t=>new Date(t).toLocaleDateString("en-SG",{day:"2-digit",month:"short"});
+const cfg={size:+(localStorage.pl_size||1024),stamp:localStorage.pl_stamp!=="0",xlabel:localStorage.pl_xlabel||"Additional photos",bl:localStorage.pl_bl||"Before",al:localStorage.pl_al||"After"};
+let reportT=Date.now();
+const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
+
+/* ---------- Supabase ---------- */
+const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
+const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
+const BUCKET="photos",DOMAIN="@snaplog.app";
+const sb=window.supabase.createClient(SB_URL,SB_KEY);
+let me=null,isAdmin=false;
+const J=r=>{if(r.error)throw r.error;return r.data};
+const who=()=>(me&&me.email||"").replace(DOMAIN,"");
+function busy(m){const b=$("#busy");b.style.display=m?"block":"none";if(m)b.textContent=m}
+window.addEventListener("unhandledrejection",e=>{busy(false);alert("Something went wrong: "+((e.reason&&e.reason.message)||e.reason))});
+const safe=s=>String(s||"").replace(/[\\/:*?"<>|\u0000-\u001f]+/g,"").trim().slice(0,60)||"untitled";
+function dl(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),60000)}
+async function signedUrls(paths){
+  const uniq=[...new Set(paths.filter(Boolean))],m={};
+  for(let k=0;k<uniq.length;k+=100){
+    const r=J(await sb.storage.from(BUCKET).createSignedUrls(uniq.slice(k,k+100),3600));
+    r.forEach(x=>{if(x.signedUrl)m[x.path]=x.signedUrl});
+  }
+  return m;
+}
+async function fetchItems(pid){
+  const rows=J(await sb.from("snaplog_items").select("id,name,notes,position,snaplog_photos(id,kind,path,orig_path,marks,created_at)").eq("project_id",pid).order("position"));
+  const urls=await signedUrls(rows.flatMap(r=>r.snaplog_photos.map(p=>p.path)));
+  return rows.map(r=>{
+    const it={id:r.id,position:r.position,name:r.name||"",notes:r.notes||"",before:[],after:[],extra:[]};
+    r.snaplog_photos.slice().sort((a,b)=>a.created_at<b.created_at?-1:a.created_at>b.created_at?1:0).forEach(p=>{
+      if(it[p.kind])it[p.kind].push({id:p.id,path:p.path,d:urls[p.path]||"",o:p.orig_path||undefined,m:p.marks||undefined,t:new Date(p.created_at).getTime()});
+    });
+    return it;
+  });
+}
+const photoBytes=async path=>new Uint8Array(await J(await sb.storage.from(BUCKET).download(path)).arrayBuffer());
+async function removeFiles(paths){const l=[...new Set(paths.filter(Boolean))];for(let k=0;k<l.length;k+=100)J(await sb.storage.from(BUCKET).remove(l.slice(k,k+100)))}
+const pathsOf=its=>its.flatMap(i=>[...i.before,...i.after,...i.extra].flatMap(p=>[p.path,p.o]));
+
+/* ---------- image compression ---------- */
+function compress(file,label){return new Promise((res,rej)=>{
+  const url=URL.createObjectURL(file),img=new Image();
+  img.onload=()=>{
+    let w=img.naturalWidth,h=img.naturalHeight,k=Math.min(1,cfg.size/Math.max(w,h));
+    w=Math.round(w*k);h=Math.round(h*k);
+    const c=document.createElement("canvas");c.width=w;c.height=h;
+    const x=c.getContext("2d");x.drawImage(img,0,0,w,h);
+    URL.revokeObjectURL(url);c.toBlob(b=>b?res(b):rej(new Error("Cannot encode image")),"image/jpeg",.6);
+  };
+  img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error("Cannot read image"))};
+  img.src=url;});}
+
+/* ---------- state ---------- */
+let view="home",proj=null,items=[],filter="all",viewing=null;
+
+/* ---------- prompt dialog ---------- */
+function ask(title,val="",type="text"){return new Promise(res=>{
+  $("#ptitle").textContent=title;const i=$("#pinput");i.type=type;i.value=val;
+  $("#prompt").classList.add("on");setTimeout(()=>i.focus(),50);
+  const done=v=>{$("#prompt").classList.remove("on");$("#pok").onclick=$("#pcancel").onclick=i.onkeydown=null;res(v)};
+  $("#pok").onclick=()=>done(i.value.trim()||null);
+  $("#pcancel").onclick=()=>done(null);
+  i.onkeydown=e=>{if(e.key==="Enter")done(i.value.trim()||null)};});}
+
+/* ---------- HOME ---------- */
+async function home(){
+  view="home";proj=null;
+  $("#back").style.display="none";$("#title").textContent="SnapLog Online";
+  $("#fab").style.display="";$("#fab").textContent="＋ New project";
+  busy("Loading…");
+  const ps=J(await sb.from("snaplog_projects").select("id,name,created_at,snaplog_items(id,snaplog_photos(kind))").is("deleted_at",null).order("created_at",{ascending:false}));
+  busy(false);
+  let h="";
+  if(!ps.length)h='<div class="empty">No projects yet.<br>Tap <b>＋ New project</b> to start.</div>';
+  for(const p of ps){
+    const li=p.snaplog_items,has=(i,k)=>i.snaplog_photos.some(x=>x.kind===k);
+    const b=li.filter(i=>has(i,"before")).length,a=li.filter(i=>has(i,"after")).length;
+    const pct=li.length?Math.round(a/li.length*100):0;
+    h+=`<div class="card proj" data-id="${p.id}"><div style="flex:1"><div class="n">${esc(p.name)}</div>
+      <div class="m">${li.length} items · ${b} ${esc(cfg.bl.toLowerCase())} · ${a} ${esc(cfg.al.toLowerCase())}</div>
+      <div class="bar"><i style="width:${pct}%"></i></div></div><span class="go">›</span></div>`;
+  }
+  h+=`<div class="foot">Logged in as ${esc(who())}</div>`;
+  $("#main").innerHTML=h;
+  document.querySelectorAll(".proj").forEach(e=>e.onclick=()=>openProject(e.dataset.id));
+}
+
+/* ---------- PROJECT ---------- */
+async function openProject(id){
+  busy("Loading…");
+  const r=await sb.from("snaplog_projects").select("id,name").eq("id",id).maybeSingle();
+  proj=r.data;if(!proj){busy(false);return home()}
+  view="proj";filter="all";await loadItems();busy(false);renderProject();
+}
+async function loadItems(){items=await fetchItems(proj.id)}
+
+function status(i){
+  if(i.before.length&&i.after.length)return'<span class="st d">Complete</span>';
+  if(i.before.length)return`<span class="st w">Waiting for ${esc(cfg.al.toLowerCase())}</span>`;
+  return'<span class="st n">No photos</span>';}
+
+const MAXX=3;
+function cell(i,kind){
+  const ph=i[kind],lab=kind==="before"?cfg.bl:kind==="after"?cfg.al:cfg.xlabel;
+  const multi=kind==="extra",full=multi&&ph.length>=MAXX;
+  let h='<div class="'+(multi?"thumbs":"one")+'">'+ph.map((p,n)=>`<img src="${p.d}" data-i="${i.id}" data-k="${kind}" data-n="${n}" alt="">`).join("")+"</div>";
+  const info=[];
+  if(cfg.stamp&&ph.length)info.push(fmt(ph[ph.length-1].t));
+  if(multi&&ph.length)info.push(ph.length+"/"+MAXX);
+  if(info.length)h+=`<div class="dt">${info.join(" · ")}</div>`;
+  if(full)return h;
+  const txt=(!multi&&ph.length)?"Retake":"📷 "+lab;
+  h+=`<div class="add"><label>${txt}<input type="file" accept="image/*" capture="environment" ${multi?"multiple":""} data-i="${i.id}" data-k="${kind}"></label>
+      <label class="g" title="Choose from gallery">🖼<input type="file" accept="image/*" ${multi?"multiple":""} data-i="${i.id}" data-k="${kind}"></label></div>`;
+  return h;}
+
+function renderProject(){
+  $("#back").style.display="";$("#title").textContent=proj.name;
+  $("#fab").style.display="";$("#fab").textContent="＋ Add item";
+  const nb=items.filter(i=>i.before.length).length,na=items.filter(i=>i.after.length).length;
+  const list=items.filter(i=>filter==="all"||(filter==="wait"&&i.before.length&&!i.after.length)||(filter==="done"&&i.before.length&&i.after.length));
+  let h=`<div class="noprint" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+    <span style="color:var(--mute);font-size:13px;flex:1">${items.length} items · ${nb} ${esc(cfg.bl.toLowerCase())} · ${na} ${esc(cfg.al.toLowerCase())}</span>
+    <button class="btn sm" id="ren">Rename</button><button class="btn sm" id="rep">📄 Report / PDF</button><button class="btn sm" id="wrd">📝 Word</button><button class="btn sm" id="bkpp">💾 Backup</button>${isAdmin?`<button class="btn sm" id="jsonp">⬇ JSON</button>`:""}<button class="btn sm danger" id="delp">Delete</button></div>
+  <div class="chips noprint">
+    <button class="chip ${filter==="all"?"on":""}" data-f="all">All (${items.length})</button>
+    <button class="chip ${filter==="wait"?"on":""}" data-f="wait">Need ${esc(cfg.al.toLowerCase())} photo (${items.filter(i=>i.before.length&&!i.after.length).length})</button>
+    <button class="chip ${filter==="done"?"on":""}" data-f="done">Complete (${items.filter(i=>i.before.length&&i.after.length).length})</button></div>`;
+  if(!items.length)h+='<div class="empty">No items yet.<br>Tap <b>＋ Add item</b> – one row per replacement / job.</div>';
+  else{
+    h+=`<div class="grid-h"><div>Item</div><div>📷 ${esc(cfg.bl)}</div><div>✅ ${esc(cfg.al)}</div></div>`;
+    if(!list.length)h+='<div class="row"><div style="grid-column:1/4;color:var(--mute);text-align:center;padding:20px">Nothing in this filter.</div></div>';
+    for(const i of list){
+      h+=`<div class="row"><div><div class="num"><span>#${items.indexOf(i)+1}</span><button class="btn sm danger" data-del="${i.id}" style="padding:1px 7px">✕</button></div>
+        <textarea class="nm" rows="2" placeholder="Item / location" data-f="name" data-i="${i.id}">${esc(i.name)}</textarea>
+        <textarea class="nt" rows="1" placeholder="Notes" data-f="notes" data-i="${i.id}">${esc(i.notes)}</textarea>${status(i)}</div>
+        <div>${cell(i,"before")}</div><div>${cell(i,"after")}<div class="xtra">${cell(i,"extra")}</div></div></div>`;
+    }
+  }
+  $("#main").innerHTML=h;
+  bindProject();
+}
+
+function bindProject(){
+  const m=$("#main");
+  m.querySelectorAll("[data-f].chip").forEach(b=>b.onclick=()=>{filter=b.dataset.f;renderProject()});
+  m.querySelectorAll("textarea").forEach(t=>{
+    const grow=()=>{t.style.height="auto";t.style.height=t.scrollHeight+"px"};grow();t.oninput=grow;
+    t.onchange=async()=>{const i=items.find(x=>x.id===t.dataset.i);i[t.dataset.f]=t.value.trim();J(await sb.from("snaplog_items").update({[t.dataset.f]:i[t.dataset.f]}).eq("id",i.id))};});
+  m.querySelectorAll("input[type=file]").forEach(inp=>inp.onchange=()=>addPhotos(inp));
+  m.querySelectorAll(".thumbs img,.one img").forEach(im=>im.onclick=()=>openViewer(im.dataset.i,im.dataset.k,+im.dataset.n));
+  m.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{
+    if(!confirm("Delete this item and its photos?"))return;
+    busy("Deleting…");const it=items.find(x=>x.id===b.dataset.del);
+    await removeFiles(pathsOf([it]));J(await sb.from("snaplog_items").delete().eq("id",it.id));
+    await loadItems();busy(false);renderProject();});
+  const r=$("#ren");if(r)r.onclick=async()=>{const n=await ask("Project name",proj.name);if(n){J(await sb.from("snaplog_projects").update({name:n}).eq("id",proj.id));proj.name=n;renderProject()}};
+  const dp=$("#delp");if(dp)dp.onclick=async()=>{
+    if(!confirm('Move project "'+proj.name+'" to the Trash? Only the admin can restore it.'))return;
+    busy("Deleting…");try{J(await sb.from("snaplog_projects").update({deleted_at:new Date().toISOString()}).eq("id",proj.id))}finally{busy(false)}home();};
+  const bk=$("#bkpp");if(bk)bk.onclick=()=>fullBackup(proj);
+  const jp=$("#jsonp");if(jp)jp.onclick=()=>exportJson(proj);
+  const rp=$("#rep");if(rp)rp.onclick=report;
+  const wr=$("#wrd");if(wr)wr.onclick=exportDocx;
+}
+
+async function addPhotos(inp){
+  const i=items.find(x=>x.id===inp.dataset.i),k=inp.dataset.k;let files=[...inp.files];
+  if(!files.length)return;
+  const y=window.scrollY;
+  if(k==="extra")files=files.slice(0,MAXX-i.extra.length);
+  else{
+    files=files.slice(0,1);
+    if(i[k].length&&!confirm("Replace the existing "+(k==="before"?cfg.bl:cfg.al).toLowerCase()+" photo?")){inp.value="";return}
+  }
+  busy("Uploading…");
+  try{
+    const old=k==="extra"?[]:[...i[k]];
+    for(const f of files){
+      const blob=await compress(f),id=uid(),path=`${proj.id}/${i.id}/${id}.jpg`;
+      J(await sb.storage.from(BUCKET).upload(path,blob,{contentType:"image/jpeg"}));
+      J(await sb.from("snaplog_photos").insert({id,item_id:i.id,kind:k,path}));
+    }
+    for(const p of old){await removeFiles([p.path,p.o]);J(await sb.from("snaplog_photos").delete().eq("id",p.id))}
+    await loadItems();
+  }finally{busy(false)}
+  renderProject();window.scrollTo(0,y);
+}
+
+/* ---------- viewer ---------- */
+function openViewer(id,k,n){
+  const i=items.find(x=>x.id===id),p=i[k][n];viewing={id,k,n};
+  $("#vimg").src=p.d;
+  $("#vcap").innerHTML=`<b>${esc((k==="before"?cfg.bl:k==="after"?cfg.al:cfg.xlabel).toUpperCase())}</b> – ${esc(i.name||"(no name)")}${p.o?" ✏️":""}${cfg.stamp?"<br>"+fmt(p.t):""}`;
+  $("#vedit").style.display=cfg.stamp?"":"none";
+  $("#viewer").classList.add("on");
+}
+$("#vclose").onclick=()=>$("#viewer").classList.remove("on");
+$("#vedit").onclick=async()=>{
+  const i=items.find(x=>x.id===viewing.id),p=i[viewing.k][viewing.n];
+  const v=await ask("Photo date & time",toLocalInput(p.t),"datetime-local");
+  if(!v)return;
+  const t=new Date(v).getTime();if(isNaN(t))return;
+  J(await sb.from("snaplog_photos").update({created_at:new Date(t).toISOString()}).eq("id",p.id));p.t=t;openViewer(viewing.id,viewing.k,viewing.n);renderProject();};
+$("#vdel").onclick=async()=>{
+  if(!confirm("Delete this photo?"))return;
+  const i=items.find(x=>x.id===viewing.id),p=i[viewing.k][viewing.n];
+  busy("Deleting…");
+  try{await removeFiles([p.path,p.o]);J(await sb.from("snaplog_photos").delete().eq("id",p.id));await loadItems()}finally{busy(false)}
+  $("#viewer").classList.remove("on");renderProject();};
+
+/* ---------- photo mark-up (original is kept, marks are removable) ---------- */
+let ed=null,edTool="p",edColor="#ff3b30";
+function edDraw(ctx,w,h,shapes,img){
+  ctx.drawImage(img,0,0,w,h);
+  const lw=Math.max(2,w/130);
+  ctx.lineCap="round";ctx.lineJoin="round";
+  for(const s of shapes){
+    ctx.lineWidth=lw;ctx.strokeStyle=s.c;ctx.fillStyle=s.c;
+    if(s.t==="p"){ctx.beginPath();s.pts.forEach((q,j)=>j?ctx.lineTo(q[0]*w,q[1]*h):ctx.moveTo(q[0]*w,q[1]*h));ctx.stroke()}
+    else if(s.t==="o"){ctx.beginPath();ctx.ellipse((s.x1+s.x2)/2*w,(s.y1+s.y2)/2*h,Math.max(1,Math.abs(s.x2-s.x1)/2*w),Math.max(1,Math.abs(s.y2-s.y1)/2*h),0,0,Math.PI*2);ctx.stroke()}
+    else if(s.t==="a"){
+      const x1=s.x1*w,y1=s.y1*h,x2=s.x2*w,y2=s.y2*h,a=Math.atan2(y2-y1,x2-x1),hl=lw*5;
+      ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-hl*Math.cos(a-.45),y2-hl*Math.sin(a-.45));ctx.lineTo(x2-hl*Math.cos(a+.45),y2-hl*Math.sin(a+.45));ctx.closePath();ctx.fill();
+    }else if(s.t==="t"){
+      const fs=Math.max(14,w/20);ctx.font="bold "+fs+"px sans-serif";ctx.textBaseline="middle";
+      ctx.lineWidth=fs/5;ctx.strokeStyle="rgba(0,0,0,.75)";ctx.strokeText(s.s,s.x*w,s.y*h);ctx.fillText(s.s,s.x*w,s.y*h);
+    }
+  }
+}
+function pushHist(){ed.hist.push(JSON.stringify(ed.shapes));if(ed.hist.length>50)ed.hist.shift()}
+function shBox(s,c){
+  const W=c.width,H=c.height;
+  if(s.t==="p"){const xs=s.pts.map(q=>q[0]),ys=s.pts.map(q=>q[1]);return[Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)]}
+  if(s.t==="t"){const ctx=c.getContext("2d"),fs=Math.max(14,W/20);ctx.font="bold "+fs+"px sans-serif";const w=ctx.measureText(s.s).width/W;return[s.x,s.y-fs/2/H,s.x+w,s.y+fs/2/H]}
+  return[Math.min(s.x1,s.x2),Math.min(s.y1,s.y2),Math.max(s.x1,s.x2),Math.max(s.y1,s.y2)];
+}
+function segDist(px,py,ax,ay,bx,by){
+  const dx=bx-ax,dy=by-ay,l=dx*dx+dy*dy;let t=l?((px-ax)*dx+(py-ay)*dy)/l:0;t=Math.max(0,Math.min(1,t));
+  return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));
+}
+function edHit(q){
+  const c=$("#ecan"),W=c.width,H=c.height,px=q[0]*W,py=q[1]*H,thr=24;
+  for(let i=ed.shapes.length-1;i>=0;i--){
+    const s=ed.shapes[i];
+    if(s.t==="p"){for(let j=1;j<s.pts.length;j++)if(segDist(px,py,s.pts[j-1][0]*W,s.pts[j-1][1]*H,s.pts[j][0]*W,s.pts[j][1]*H)<thr)return{i,part:"m"}}
+    else if(s.t==="a"){
+      if(Math.hypot(px-s.x1*W,py-s.y1*H)<thr)return{i,part:"1"};
+      if(Math.hypot(px-s.x2*W,py-s.y2*H)<thr)return{i,part:"2"};
+      if(segDist(px,py,s.x1*W,s.y1*H,s.x2*W,s.y2*H)<thr)return{i,part:"m"};
+    }else if(s.t==="o"){
+      const cx=(s.x1+s.x2)/2*W,cy=(s.y1+s.y2)/2*H,rx=Math.max(1,Math.abs(s.x2-s.x1)/2*W),ry=Math.max(1,Math.abs(s.y2-s.y1)/2*H);
+      const r=Math.hypot((px-cx)/rx,(py-cy)/ry);
+      if(Math.abs(r-1)*Math.min(rx,ry)<thr||(Math.min(rx,ry)<thr&&r<1))return{i,part:"m"};
+    }else if(s.t==="t"){
+      const b=shBox(s,c);if(px>=b[0]*W-thr/2&&px<=b[2]*W+thr/2&&py>=b[1]*H-thr/2&&py<=b[3]*H+thr/2)return{i,part:"m"};
+    }
+  }
+  return null;
+}
+function edShift(s,dx,dy){
+  if(s.t==="p")s.pts.forEach(q=>{q[0]+=dx;q[1]+=dy});
+  else if(s.t==="t"){s.x+=dx;s.y+=dy}
+  else{s.x1+=dx;s.x2+=dx;s.y1+=dy;s.y2+=dy}
+}
+function edRedraw(){
+  const c=$("#ecan"),ctx=c.getContext("2d");
+  edDraw(ctx,c.width,c.height,ed.cur?[...ed.shapes,ed.cur]:ed.shapes,ed.img);
+  const s=ed.shapes[ed.sel];
+  if(s){
+    const b=shBox(s,c),W=c.width,H=c.height;
+    ctx.save();ctx.setLineDash([6,4]);ctx.lineWidth=1.5;ctx.strokeStyle="#fff";
+    ctx.strokeRect(b[0]*W-8,b[1]*H-8,(b[2]-b[0])*W+16,(b[3]-b[1])*H+16);
+    if(s.t==="a"){ctx.setLineDash([]);ctx.fillStyle="#fff";[[s.x1,s.y1],[s.x2,s.y2]].forEach(q=>{ctx.beginPath();ctx.arc(q[0]*W,q[1]*H,6,0,7);ctx.fill()})}
+    ctx.restore();
+  }
+}
+async function openEditor(id,k,n){
+  const i=items.find(x=>x.id===id),p=i[k][n];
+  const img=new Image();
+  busy("Loading photo…");
+  try{const blob=J(await sb.storage.from(BUCKET).download(p.o||p.path));await new Promise(r=>{img.onload=r;img.onerror=r;img.src=URL.createObjectURL(blob)})}finally{busy(false)}
+  ed={id,k,n,p,i,img,shapes:JSON.parse(JSON.stringify(p.m||[])),cur:null,sel:-1,hist:[],drag:null};
+  const nw=img.naturalWidth||4,nh=img.naturalHeight||3;
+  const kk=Math.min((innerWidth-16)/nw,(innerHeight-190)/nh);
+  const c=$("#ecan");c.width=Math.round(nw*kk);c.height=Math.round(nh*kk);
+  $("#viewer").classList.remove("on");$("#editor").classList.add("on");edRedraw();
+}
+(function(){
+  const c=$("#ecan");
+  const pt=e=>{const r=c.getBoundingClientRect();return[Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))]};
+  c.onpointerdown=async e=>{
+    if(!ed)return;e.preventDefault();const q=pt(e);
+    if(edTool==="m"){
+      const h=edHit(q);
+      if(h){ed.sel=h.i;pushHist();ed.drag={part:h.part,last:q,moved:false};c.setPointerCapture(e.pointerId)}
+      else ed.sel=-1;
+      edRedraw();return;
+    }
+    ed.sel=-1;
+    if(edTool==="t"){const t=await ask("Text label");if(t){pushHist();ed.shapes.push({t:"t",c:edColor,x:q[0],y:q[1],s:t});edRedraw()}return}
+    c.setPointerCapture(e.pointerId);
+    ed.cur=edTool==="p"?{t:"p",c:edColor,pts:[q]}:{t:edTool,c:edColor,x1:q[0],y1:q[1],x2:q[0],y2:q[1]};
+  };
+  c.onpointermove=e=>{
+    if(ed&&ed.drag){
+      const q=pt(e),s=ed.shapes[ed.sel],d=ed.drag;
+      if(s.t==="a"&&d.part==="1"){s.x1=q[0];s.y1=q[1]}
+      else if(s.t==="a"&&d.part==="2"){s.x2=q[0];s.y2=q[1]}
+      else edShift(s,q[0]-d.last[0],q[1]-d.last[1]);
+      d.last=q;d.moved=true;edRedraw();return;
+    }
+    if(!ed||!ed.cur)return;const q=pt(e);
+    if(ed.cur.t==="p")ed.cur.pts.push(q);else{ed.cur.x2=q[0];ed.cur.y2=q[1]}
+    edRedraw();
+  };
+  const up=()=>{
+    if(ed&&ed.drag){if(!ed.drag.moved)ed.hist.pop();ed.drag=null;edRedraw();return}
+    if(!ed||!ed.cur)return;const s=ed.cur;ed.cur=null;
+    const ok=s.t==="p"?s.pts.length>1:Math.hypot(s.x2-s.x1,s.y2-s.y1)>0.015;
+    if(ok){pushHist();ed.shapes.push(s)}edRedraw();
+  };
+  c.onpointerup=up;c.onpointercancel=up;
+  document.querySelectorAll("#editor .tool").forEach(b=>b.onclick=()=>{
+    edTool=b.dataset.tool;document.querySelectorAll("#editor .tool").forEach(x=>x.classList.toggle("on",x===b))});
+  document.querySelectorAll("#editor .cdot").forEach(b=>b.onclick=()=>{
+    edColor=b.dataset.c;document.querySelectorAll("#editor .cdot").forEach(x=>x.classList.toggle("on",x===b))});
+  $("#eundo").onclick=()=>{if(ed&&ed.hist.length){ed.shapes=JSON.parse(ed.hist.pop());ed.sel=-1;edRedraw()}};
+  $("#edel").onclick=()=>{if(ed&&ed.shapes[ed.sel]){pushHist();ed.shapes.splice(ed.sel,1);ed.sel=-1;edRedraw()}};
+  $("#eclear").onclick=()=>{if(ed&&ed.shapes.length){pushHist();ed.shapes=[];ed.sel=-1;edRedraw()}};
+  $("#ecancel").onclick=()=>{const e=ed;ed=null;$("#editor").classList.remove("on");openViewer(e.id,e.k,e.n)};
+  $("#esave").onclick=async()=>{
+    const e=ed,p=e.p;ed=null;busy("Saving…");
+    try{
+      if(!e.shapes.length){
+        if(p.o){J(await sb.from("snaplog_photos").update({path:p.o,orig_path:null,marks:null}).eq("id",p.id));await removeFiles([p.path])}
+      }else{
+        const oc=document.createElement("canvas");oc.width=e.img.naturalWidth;oc.height=e.img.naturalHeight;
+        edDraw(oc.getContext("2d"),oc.width,oc.height,e.shapes,e.img);
+        const blob=await new Promise(r=>oc.toBlob(r,"image/jpeg",.7));
+        const np=`${proj.id}/${e.i.id}/${p.id}-m${Date.now()}.jpg`;
+        J(await sb.storage.from(BUCKET).upload(np,blob,{contentType:"image/jpeg"}));
+        J(await sb.from("snaplog_photos").update({path:np,orig_path:p.o||p.path,marks:e.shapes}).eq("id",p.id));
+        if(p.o)await removeFiles([p.path]);
+      }
+      await loadItems();
+    }finally{busy(false)}
+    $("#editor").classList.remove("on");renderProject();openViewer(e.id,e.k,e.n);
+  };
+  $("#vmark").onclick=()=>openEditor(viewing.id,viewing.k,viewing.n);
+})();
+
+/* ---------- report (print / save as PDF) ---------- */
+function report(){
+  if(view!=="report")reportT=Date.now();
+  view="report";
+  $("#fab").style.display="none";
+  let h=`<div class="noprint" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center"><button class="btn" id="rb">‹ Back</button><button class="btn primary" onclick="window.print()">🖨 Print / Save as PDF</button><button class="btn primary" id="rw">📝 Word (.docx)</button>${cfg.stamp?`<label style="font-size:13px;color:var(--mute)">Report date <input type="datetime-local" id="rdate" value="${toLocalInput(reportT)}" style="font:inherit;padding:5px;border:1px solid var(--line);border-radius:8px"></label>`:""}</div>
+  <h2 style="margin:0 0 4px">${esc(proj.name)}</h2><div style="color:#666;margin-bottom:14px">${esc(cfg.bl)} / ${esc(cfg.al)} photo report${cfg.stamp?` · <span id="rhead">${fmt(reportT)}</span>`:""}</div>`;
+  items.forEach((i,n)=>{
+    const col=(ph)=>ph.length?ph.map(p=>`<img src="${p.d}">${cfg.stamp?`<div class="dt">${fmt(p.t)}</div>`:""}`).join(""):'<div class="dt">— no photo —</div>';
+    h+=`<div class="rp-item"><h4>#${n+1} ${esc(i.name||"(no name)")}</h4>${i.notes?`<div class="dt" style="margin-bottom:6px">${esc(i.notes)}</div>`:""}
+      <div class="rp-cols"><div><b>${esc(cfg.bl.toUpperCase())}</b>${col(i.before)}</div><div><b>${esc(cfg.al.toUpperCase())}</b>${col(i.after)}</div></div>
+      ${i.extra.length?`<div style="margin-top:8px"><b style="font-size:12px;color:#555">${esc(cfg.xlabel.toUpperCase())}</b><div class="rp-ex">${i.extra.map(p=>`<img src="${p.d}">`).join("")}</div></div>`:""}</div>`;
+  });
+  $("#main").innerHTML=h;$("#rb").onclick=renderProject;$("#rw").onclick=exportDocx;window.scrollTo(0,0);
+  const rd=$("#rdate");if(rd)rd.oninput=e=>{const t=new Date(e.target.value).getTime();if(!isNaN(t)){reportT=t;$("#rhead").textContent=fmt(t)}};
+}
+
+/* ---------- Word (.docx) export – no libraries ---------- */
+const CRC=(()=>{const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+const crc32=b=>{let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC[(c^b[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0};
+const enc=s=>new TextEncoder().encode(s);
+function d2b(d){const s=atob(d.split(",")[1]),b=new Uint8Array(s.length);for(let i=0;i<s.length;i++)b[i]=s.charCodeAt(i);return b}
+function zip(files,type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"){ // store-only zip
+  const parts=[],cen=[];let off=0;
+  for(const f of files){
+    const nm=enc(f.name),crc=crc32(f.data),sz=f.data.length;
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(8,0,true);
+    lh.setUint32(14,crc,true);lh.setUint32(18,sz,true);lh.setUint32(22,sz,true);lh.setUint16(26,nm.length,true);
+    parts.push(new Uint8Array(lh.buffer),nm,f.data);
+    const ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);
+    ch.setUint32(16,crc,true);ch.setUint32(20,sz,true);ch.setUint32(24,sz,true);ch.setUint16(28,nm.length,true);ch.setUint32(42,off,true);
+    cen.push(new Uint8Array(ch.buffer),nm);
+    off+=30+nm.length+sz;
+  }
+  const csz=cen.reduce((a,b)=>a+b.length,0);
+  const end=new DataView(new ArrayBuffer(22));
+  end.setUint32(0,0x06054b50,true);end.setUint16(8,files.length,true);end.setUint16(10,files.length,true);
+  end.setUint32(12,csz,true);end.setUint32(16,off,true);
+  return new Blob([...parts,...cen,new Uint8Array(end.buffer)],{type});
+}
+const xe=s=>String(s??"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const imgSize=d=>new Promise(r=>{const i=new Image();i.onload=()=>r([i.naturalWidth,i.naturalHeight]);i.onerror=()=>r([4,3]);i.src=d});
+async function buildDocx(pr,its){
+  const media=[];let did=1;
+  async function pic(p,maxW,maxH){
+    const [w,h]=await imgSize(p.d),k=Math.min(maxW/w,maxH/h),cx=Math.round(w*k),cy=Math.round(h*k);
+    media.push({name:"word/media/img"+(media.length+1)+".jpg",data:await photoBytes(p.path)});
+    const id=media.length,n=did++;
+    const cap=cfg.stamp?para(fmt(p.t),{sz:16,color:"666666",after:40}):"";
+    return cap+`<w:p><w:pPr><w:spacing w:after="60"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${n}" name="Photo ${n}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${n}" name="img${id}.jpg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+  }
+  const para=(t,o={})=>`<w:p><w:pPr><w:spacing w:before="${o.before||0}" w:after="${o.after||60}"/>${o.keep?"<w:keepNext/>":""}</w:pPr><w:r><w:rPr>${o.b?"<w:b/>":""}${o.color?`<w:color w:val="${o.color}"/>`:""}<w:sz w:val="${o.sz||22}"/></w:rPr><w:t xml:space="preserve">${xe(t)}</w:t></w:r></w:p>`;
+  const bd='<w:tblBorders>'+["top","left","bottom","right","insideH","insideV"].map(s=>`<w:${s} w:val="single" w:sz="4" w:space="0" w:color="BFC5D0"/>`).join("")+'</w:tblBorders>';
+  const cell=(w,inner,shade)=>`<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${shade?`<w:shd w:val="clear" w:color="auto" w:fill="${shade}"/>`:""}</w:tcPr>${inner}</w:tc>`;
+  const tbl=(cols,rows)=>`<w:tbl><w:tblPr><w:tblW w:w="${cols.reduce((a,b)=>a+b,0)}" w:type="dxa"/>${bd}<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${cols.map(c=>`<w:gridCol w:w="${c}"/>`).join("")}</w:tblGrid>${rows.map(r=>`<w:tr><w:trPr><w:cantSplit/></w:trPr>${r}</w:tr>`).join("")}</w:tbl>`;
+  let body=para(pr.name,{b:1,sz:36,after:40})+para(cfg.bl+" / "+cfg.al+" photo report"+(cfg.stamp?" · "+fmt(view==="report"?reportT:Date.now()):""),{color:"666666",after:200});
+  let n=0;
+  for(const i of its){
+    n++;
+    body+=para(`#${n}  ${i.name||"(no name)"}`,{b:1,sz:26,before:240,keep:1});
+    if(i.notes)body+=para(i.notes,{color:"555555",sz:20,keep:1});
+    const one=async(p)=>p?await pic(p,2880000,2160000):para("— no photo —",{color:"888888",sz:20});
+    body+=tbl([4819,4819],[
+      cell(4819,para(cfg.bl.toUpperCase(),{b:1,sz:20,after:0}),"E9ECF2")+cell(4819,para(cfg.al.toUpperCase(),{b:1,sz:20,after:0}),"E9ECF2"),
+      cell(4819,await one(i.before[0]))+cell(4819,await one(i.after[0]))
+    ]);
+    if(i.extra.length){
+      body+=para(cfg.xlabel.toUpperCase(),{b:1,sz:20,before:80,keep:1});
+      let cs="";
+      for(let k=0;k<3;k++)cs+=cell(3212,i.extra[k]?await pic(i.extra[k],1872000,1440000):para("",{after:0}));
+      body+=tbl([3212,3213,3213],[cs]);
+    }
+    body+=para("",{after:0});
+  }
+  const NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"';
+  const doc=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${NS}><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+  const rels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${media.map((m,k)=>`<Relationship Id="rId${k+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${m.name.split("/").pop()}"/>`).join("")}</Relationships>`;
+  const files=[
+    {name:"[Content_Types].xml",data:enc('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="jpg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>')},
+    {name:"_rels/.rels",data:enc('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>')},
+    {name:"word/document.xml",data:enc(doc)},
+    {name:"word/_rels/document.xml.rels",data:enc(rels)},
+    ...media];
+  return zip(files);
+}
+async function exportDocx(){busy("Building Word file…");try{dl(await buildDocx(proj,items),safe(proj.name)+" - photo report.docx")}finally{busy(false)}}
+
+/* ---------- Full backup (admin): folder per project, photos + originals + Word report ---------- */
+async function fullBackup(only){
+  if(!confirm(only?"Download a backup of this project?":"Download a backup of ALL projects? This can take a few minutes – keep this page open."))return;
+  const files=[],names=new Set();
+  try{
+    busy("Preparing…");
+    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name").is("deleted_at",null).order("created_at"));
+    let pi=0;
+    for(const pr of prs){
+      pi++;
+      let folder=safe(pr.name),c=2;
+      while(names.has(folder.toLowerCase()))folder=safe(pr.name)+" ("+(c++)+")";
+      names.add(folder.toLowerCase());
+      const its=await fetchItems(pr.id);
+      const total=its.reduce((a,i)=>a+i.before.length+i.after.length+i.extra.length,0);let done=0;
+      for(const [n,i] of its.entries()){
+        const base=String(n+1).padStart(2,"0")+" "+safe(i.name||"item");
+        for(const [kind,label] of [["before",cfg.bl],["after",cfg.al],["extra",cfg.xlabel]]){
+          for(const [k,p] of i[kind].entries()){
+            const nm=`${base} - ${safe(label)}${kind==="extra"?" "+(k+1):""}.jpg`;
+            files.push({name:`${folder}/${nm}`,data:await photoBytes(p.path)});
+            if(p.o)files.push({name:`${folder}/originals/${nm}`,data:await photoBytes(p.o)});
+            done++;busy(`Backup: project ${pi}/${prs.length} – photo ${done}/${total}`);
+          }
+        }
+      }
+      busy(`Backup: building report for project ${pi}/${prs.length}…`);
+      files.push({name:`${folder}/${safe(pr.name)} - photo report.docx`,data:new Uint8Array(await (await buildDocx(pr,its)).arrayBuffer())});
+    }
+    busy("Creating zip…");
+    dl(zip(files,"application/zip"),"SnapLog backup "+new Date().toISOString().slice(0,10)+".zip");
+  }finally{busy(false)}
+}
+
+/* ---------- buttons ---------- */
+$("#back").onclick=()=>{if(view==="report")renderProject();else home()};
+$("#fab").onclick=async()=>{
+  if(view==="home"){
+    const n=await ask("New project name");if(!n)return;
+    busy("Creating…");const p=J(await sb.from("snaplog_projects").insert({name:n}).select("id,name").single());busy(false);openProject(p.id);
+  }else if(view==="proj"){
+    busy("Adding…");const r=J(await sb.from("snaplog_items").insert({project_id:proj.id,position:Date.now()}).select("id").single());
+    filter="all";await loadItems();busy(false);renderProject();
+    const t=document.querySelector(`textarea[data-i="${r.id}"]`);if(t){t.scrollIntoView({block:"center"});t.focus()}
+  }};
+$("#menuBtn").onclick=()=>{
+  $("#optSize").value=String(cfg.size);$("#optStamp").checked=cfg.stamp;$("#optX").value=cfg.xlabel;$("#optB").value=cfg.bl;$("#optA").value=cfg.al;
+  $("#who").textContent="Logged in as "+who();$("#fullbk").style.display="";$("#jsonin").parentElement.style.display=isAdmin?"":"none";$("#jsonbk").style.display=isAdmin?"":"none";$("#trashbtn").style.display=isAdmin?"":"none";
+  $("#menu").classList.add("on");
+};
+$("#menuClose").onclick=()=>{
+  cfg.size=+$("#optSize").value;cfg.stamp=$("#optStamp").checked;cfg.xlabel=$("#optX").value.trim()||"Additional photos";localStorage.pl_xlabel=cfg.xlabel;cfg.bl=$("#optB").value.trim()||"Before";cfg.al=$("#optA").value.trim()||"After";localStorage.pl_bl=cfg.bl;localStorage.pl_al=cfg.al;
+  localStorage.pl_size=cfg.size;localStorage.pl_stamp=cfg.stamp?"1":"0";
+  $("#menu").classList.remove("on");
+  if(view==="proj")renderProject();else if(view==="report")report();else if(view==="home")home();};
+$("#fullbk").onclick=()=>{$("#menu").classList.remove("on");fullBackup()};
+$("#logout").onclick=async()=>{$("#menu").classList.remove("on");await sb.auth.signOut()};
+$("#viewer").onclick=e=>{if(e.target.id==="viewer")$("#viewer").classList.remove("on")};
+
+/* ---------- JSON backup / import (same format as the phone version) ---------- */
+const blobToDataURL=b=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(r.error);r.readAsDataURL(b)});
+const dlb=async path=>J(await sb.storage.from(BUCKET).download(path));
+async function exportJson(only){
+  if(!isAdmin)return;
+  if(!confirm(only?"Download this project as a .json data file?":"Download ALL projects as one .json data file? Large backups can take a few minutes."))return;
+  try{
+    busy("Preparing…");
+    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name,created_at").is("deleted_at",null).order("created_at"));
+    const projects=prs.map(p=>({id:p.id,name:p.name,created:p.created_at?new Date(p.created_at).getTime():Date.now()}));
+    const parts=['{"v":1,"projects":'+JSON.stringify(projects)+',"items":['];
+    let first=true,pi=0;
+    for(const pr of prs){
+      pi++;
+      const its=await fetchItems(pr.id);
+      for(const [idx,i] of its.entries()){
+        busy(`Project ${pi}/${prs.length} – item ${idx+1}/${its.length}`);
+        const conv=async p=>{const q={d:await blobToDataURL(await dlb(p.path)),t:p.t};if(p.o){q.o=await blobToDataURL(await dlb(p.o));q.m=p.m}return q};
+        const o={id:i.id,projectId:pr.id,order:i.position,name:i.name,notes:i.notes,before:[],after:[],extra:[]};
+        for(const k of ["before","after","extra"])for(const p of i[k])o[k].push(await conv(p));
+        parts.push((first?"":",")+JSON.stringify(o));first=false;
+      }
+    }
+    parts.push("]}");
+    dl(new Blob(parts,{type:"application/json"}),(only?safe(only.name)+" - ":"SnapLog data ")+new Date().toISOString().slice(0,10)+".json");
+  }finally{busy(false)}
+}
+async function importJson(file){
+  let d;
+  try{d=JSON.parse(await file.text())}catch{alert("That file is not a valid SnapLog backup.");return}
+  if(!d||!Array.isArray(d.projects)||!Array.isArray(d.items)){alert("That file is not a valid SnapLog backup.");return}
+  const KINDS=["before","after","extra"];
+  const nPh=d.items.reduce((a,i)=>a+KINDS.reduce((s,k)=>s+((i[k]||[]).length),0),0);
+  if(!confirm(`Import ${d.projects.length} project(s), ${d.items.length} item(s) and ${nPh} photo(s)?\nThey will be added as NEW projects (nothing is overwritten).`))return;
+  let done=0;
+  const up=async(dataUrl,pth)=>J(await sb.storage.from(BUCKET).upload(pth,await (await fetch(dataUrl)).blob(),{contentType:"image/jpeg"}));
+  try{
+    for(const p of d.projects){
+      busy("Importing "+(p.name||"project")+"…");
+      const np=J(await sb.from("snaplog_projects").insert({name:p.name||"Imported project",created_at:new Date(p.created||Date.now()).toISOString()}).select("id").single());
+      const its=d.items.filter(i=>i.projectId===p.id).sort((a,b)=>(a.order||0)-(b.order||0));
+      for(const [idx,i] of its.entries()){
+        const ni=J(await sb.from("snaplog_items").insert({project_id:np.id,position:Date.now()+idx,name:i.name||"",notes:i.notes||""}).select("id").single());
+        for(const kind of KINDS){
+          for(const q of (i[kind]||[])){
+            if(!q||!q.d)continue;
+            const id=uid(),path=`${np.id}/${ni.id}/${id}.jpg`;
+            let orig=null;
+            if(q.o){orig=`${np.id}/${ni.id}/${id}-o.jpg`;await up(q.o,orig)}
+            await up(q.d,path);
+            J(await sb.from("snaplog_photos").insert({id,item_id:ni.id,kind,path,orig_path:orig,marks:q.o&&q.m?q.m:null,created_at:new Date(q.t||Date.now()).toISOString()}));
+            done++;busy(`Importing photo ${done}/${nPh}…`);
+          }
+        }
+      }
+    }
+  }finally{busy(false)}
+  alert("Import finished: "+done+" photo(s) added.");
+  home();
+}
+async function trash(){
+  if(!isAdmin)return;
+  view="trash";$("#back").style.display="";$("#title").textContent="Trash";$("#fab").style.display="none";
+  busy("Loading…");
+  const ps=J(await sb.from("snaplog_projects").select("id,name,deleted_at").not("deleted_at","is",null).order("deleted_at",{ascending:false}));
+  busy(false);
+  let h='<div class="foot" style="margin:6px 0 12px">Deleted projects. Restore them, or delete forever to free storage.</div>';
+  if(!ps.length)h+='<div class="empty">The Trash is empty.</div>';
+  for(const p of ps)h+=`<div class="card" style="display:block"><div class="n">${esc(p.name)}</div><div class="m">Deleted ${new Date(p.deleted_at).toLocaleString()}</div>
+    <div style="display:flex;gap:8px;margin-top:8px"><button class="btn sm primary" data-r="${p.id}">Restore</button><button class="btn sm danger" data-x="${p.id}">Delete forever</button></div></div>`;
+  $("#main").innerHTML=h;
+  document.querySelectorAll("[data-r]").forEach(b=>b.onclick=async()=>{busy("Restoring…");try{J(await sb.from("snaplog_projects").update({deleted_at:null}).eq("id",b.dataset.r))}finally{busy(false)}trash()});
+  document.querySelectorAll("[data-x]").forEach(b=>b.onclick=async()=>{
+    const p=ps.find(x=>x.id===b.dataset.x);
+    if(!confirm('Permanently delete "'+p.name+'" and all its photos? This cannot be undone.'))return;
+    busy("Deleting…");try{const its=await fetchItems(p.id);await removeFiles(pathsOf(its));J(await sb.from("snaplog_projects").delete().eq("id",p.id))}finally{busy(false)}trash()});
+}
+$("#trashbtn").onclick=()=>{$("#menu").classList.remove("on");trash()};
+$("#jsonbk").onclick=()=>{$("#menu").classList.remove("on");exportJson()};
+$("#jsonin").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;$("#menu").classList.remove("on");await importJson(f)};
+
+/* ---------- login + start ---------- */
+function showLogin(){me=null;isAdmin=false;$("#login").classList.add("on");$("#main").innerHTML="";$("#fab").style.display="none";$("#back").style.display="none";$("#lp").value=""}
+async function afterLogin(u){me=u;isAdmin=(u.email||"").toLowerCase()==="admin"+DOMAIN;$("#login").classList.remove("on");await home()}
+$("#lbtn").onclick=async()=>{
+  const u=$("#lu").value.trim().toLowerCase().replace(/\s+/g,""),p=$("#lp").value;
+  if(!u||!p)return;
+  $("#lerr").textContent="";busy("Logging in…");
+  const r=await sb.auth.signInWithPassword({email:u.includes("@")?u:u+DOMAIN,password:p});busy(false);
+  if(r.error){$("#lerr").textContent="Wrong name or password.";return}
+  await afterLogin(r.data.user);
+};
+$("#lp").onkeydown=e=>{if(e.key==="Enter")$("#lbtn").click()};
+(async()=>{
+  if(SB_KEY.startsWith("PASTE")){$("#login").classList.remove("on");$("#fab").style.display="none";$("#main").innerHTML='<div class="empty"><b>Setup needed</b><br>Paste your Supabase anon key into SB_KEY near the top of the script.</div>';return}
+  const {data}=await sb.auth.getSession();
+  if(data.session)await afterLogin(data.session.user);else showLogin();
+  sb.auth.onAuthStateChange(ev=>{if(ev==="SIGNED_OUT")showLogin()});
+})();
+</script>
+</body>
+</html>
