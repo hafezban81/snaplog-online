@@ -85,11 +85,24 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
 .wrow .r1{grid-template-columns:1fr 2fr}
 .wrow .r2{grid-template-columns:1.6fr .8fr .7fr 1fr auto}
 .wrow input,.wrow select{width:100%;font:inherit;font-size:13px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:#fff;min-width:0}
-.wcf-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
-.wcf-tbl th,.wcf-tbl td{border:1px solid #bbb;padding:4px;text-align:left;vertical-align:top}
-.wcf-tbl .r{text-align:right}
-.wcf-sign{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
-.wcf-sign div{border:1px solid #bbb;height:90px;padding:6px;font-size:12px;color:#666}
+.wcf-page{page-break-after:always;color:#000;font-size:12px}
+.wcf-title{text-align:center;font-weight:bold;text-decoration:underline;font-size:15px;margin:6px 0 12px}
+.wcf-hd{border-collapse:collapse;margin-bottom:10px}
+.wcf-hd td{padding:2px 4px;font-size:12px;border:0}
+.wcf-hd td.wk{width:130px}
+.wcf-tbl2{width:100%;border-collapse:collapse;font-size:10px}
+.wcf-tbl2 th{background:#1c3d7a;color:#fff;padding:4px 3px;font-size:9.5px;border:1px solid #1c3d7a;font-weight:bold}
+.wcf-tbl2 td{border:1px solid #000;padding:4px 3px;vertical-align:top;height:22px}
+.wcf-tbl2 td.r{text-align:right}
+.wcf-tbl2 td.c{text-align:center}
+.wcf-stmt{border:1px solid #000;border-top:0;font-size:10px;padding:3px 5px}
+.wcf-sign{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px;font-size:11px}
+.sigbox{height:46px;border-bottom:1px solid #999;margin:4px 0 6px}
+.wcf-cert{font-size:11px;margin-top:18px}
+.wcf-rembox{border:1px solid #000;width:56%;margin-top:14px}
+.wcf-remh{text-align:center;font-weight:bold;border-bottom:1px solid #000;padding:3px;font-size:11px}
+.wcf-remb{min-height:46px;padding:4px;font-size:11px}
+.wrow .r3{grid-template-columns:1fr}
 @page{size:A4;margin:0}
 @media print{
   header.top,.fab,.noprint{display:none!important}
@@ -164,6 +177,11 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
     <label>PO no.</label><input type="text" id="wcfPo">
     <label>Requested by</label><input type="text" id="wcfReq">
     <label>Service date (the rate for each work type is picked for this date)</label><input type="date" id="wcfDate">
+    <label>Location</label><input type="text" id="wcfLoc">
+    <label>Remarks (box at the bottom of the form)</label><input type="text" id="wcfRem">
+    <label>Company logo (top right of the form)</label>
+    <div id="wcfLogoBox"></div>
+    <input type="file" id="wcfLogoIn" accept="image/*" style="margin-top:6px">
     <h3 style="margin:16px 0 4px;font-size:15px">WCF lines</h3>
     <div class="dt" style="margin-bottom:6px">Separate from the photos. Enter each billable line once.</div>
     <div id="wcfLines"></div>
@@ -213,7 +231,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-16.2";
+const APP_VER="2026-11-16.3";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -309,6 +327,26 @@ async function openProject(id){
 async function loadItems(){items=await fetchItems(proj.id)}
 
 /* ---------- WCF (optional work completion form) ---------- */
+let companyLogo=null;
+async function loadLogo(){
+  try{const b=J(await sb.storage.from(BUCKET).download("_company/logo.jpg"));if(companyLogo)URL.revokeObjectURL(companyLogo);companyLogo=URL.createObjectURL(b)}
+  catch{companyLogo=null}
+}
+async function uploadLogo(file){
+  busy("Uploading logo…");
+  try{
+    const blob=await compress(file);
+    J(await sb.storage.from(BUCKET).upload("_company/logo.jpg",blob,{contentType:"image/jpeg",upsert:true}));
+    logAct("Changed company logo","");await loadLogo();
+  }catch(e){alert("Could not upload the logo: "+(e.message||e))}
+  finally{busy(false)}
+  wcfLogoShow();
+}
+function wcfLogoShow(){
+  $("#wcfLogoBox").innerHTML=companyLogo?`<img src="${companyLogo}" style="max-height:60px;max-width:100%;display:block">`:'<div class="dt">No logo yet.</div>';
+  $("#wcfLogoIn").style.display=isAdmin?"":"none";
+}
+$("#wcfLogoIn").onchange=e=>{const f=e.target.files[0];e.target.value="";if(f)uploadLogo(f)};
 async function loadRates(){
   try{rates=J(await sb.from("snaplog_wcf_rates").select("work_type,adj_pct,effective_from").order("effective_from",{ascending:false}))}
   catch{rates=[]}
@@ -327,7 +365,7 @@ function wcfCalc(w,date){
 function wcfTypes(){return [...new Set(rates.map(r=>r.work_type))]}
 function wcfLines(prj){
   const date=wcfDate(prj),src=(prj.wcf&&prj.wcf.lines)||[];
-  return src.filter(l=>l.sor||l.desc||l.qty||l.price).map((l,n)=>({no:n+1,name:l.desc||"",sor:l.sor||"",type:l.type||"",qty:+l.qty||0,uom:l.uom||"",price:+l.price||0,...wcfCalc(l,date)}));
+  return src.filter(l=>l.sor||l.desc||l.qty||l.price).map((l,n)=>({no:n+1,name:l.desc||"",sor:l.sor||"",type:l.type||"",qty:+l.qty||0,uom:l.uom||"",price:+l.price||0,remarks:l.remarks||"",...wcfCalc(l,date)}));
 }
 const wcfGrand=lines=>lines.reduce((a,l)=>a+l.tot,0);
 let wcfDraft=[];
@@ -338,6 +376,7 @@ function wcfRowHtml(l,n){
   return `<div class="wrow">
     <div class="r r1"><input data-k="sor" placeholder="SOR ref" value="${esc(l.sor)}"><input data-k="desc" placeholder="Description" value="${esc(l.desc)}"></div>
     <div class="r r2"><select data-k="type">${opts}</select><input data-k="qty" type="number" step="0.01" placeholder="Qty" value="${esc(l.qty)}"><input data-k="uom" placeholder="UOM" value="${esc(l.uom)}"><input data-k="price" type="number" step="0.01" placeholder="Unit $" value="${esc(l.price)}"><button class="btn sm danger" data-rm="${n}">✕</button></div>
+    <div class="r r3"><input data-k="remarks" placeholder="Remarks (optional)" value="${esc(l.remarks)}"></div>
   </div>`;
 }
 function wcfTotal(){
@@ -359,16 +398,16 @@ function wcfRenderDraft(){
 }
 function openWcfSheet(){
   const w=proj.wcf||{};
-  $("#wcfOn").checked=!!w.on;$("#wcfJob").value=w.job||"";$("#wcfRef").value=w.ref||"";$("#wcfPo").value=w.po||"";$("#wcfReq").value=w.req||"";$("#wcfDate").value=w.date||"";
+  $("#wcfOn").checked=!!w.on;$("#wcfJob").value=w.job||"";$("#wcfRef").value=w.ref||"";$("#wcfPo").value=w.po||"";$("#wcfReq").value=w.req||"";$("#wcfDate").value=w.date||"";$("#wcfLoc").value=w.loc||"";$("#wcfRem").value=w.remarks||"";wcfLogoShow();
   wcfDraft=JSON.parse(JSON.stringify(w.lines||[]));
   wcfRenderDraft();
   $("#wcfm").classList.add("on");
 }
-$("#wcfAdd").onclick=()=>{wcfDraft.push({sor:"",desc:"",type:"",qty:0,uom:"",price:0});wcfRenderDraft()};
+$("#wcfAdd").onclick=()=>{wcfDraft.push({sor:"",desc:"",type:"",qty:0,uom:"",price:0,remarks:""});wcfRenderDraft()};
 $("#wcfDate").onchange=wcfTotal;
 $("#wcfCancel").onclick=()=>$("#wcfm").classList.remove("on");
 $("#wcfSave").onclick=async()=>{
-  const w={on:$("#wcfOn").checked,job:$("#wcfJob").value.trim(),ref:$("#wcfRef").value.trim(),po:$("#wcfPo").value.trim(),req:$("#wcfReq").value.trim(),date:$("#wcfDate").value||"",lines:wcfDraft.filter(l=>l.sor||l.desc||l.qty||l.price)};
+  const w={on:$("#wcfOn").checked,job:$("#wcfJob").value.trim(),ref:$("#wcfRef").value.trim(),po:$("#wcfPo").value.trim(),req:$("#wcfReq").value.trim(),date:$("#wcfDate").value||"",loc:$("#wcfLoc").value.trim(),remarks:$("#wcfRem").value.trim(),lines:wcfDraft.filter(l=>l.sor||l.desc||l.qty||l.price)};
   busy("Saving…");
   try{J(await sb.from("snaplog_projects").update({wcf:w}).eq("id",proj.id));proj.wcf=w;logAct(w.on?"Turned on WCF":"Turned off WCF",proj.name)}
   catch(e){alert("Could not save the WCF settings: "+(e.message||e));return}
@@ -378,17 +417,27 @@ $("#wcfSave").onclick=async()=>{
 function wcfReportHtml(){
   if(!proj.wcf||!proj.wcf.on)return"";
   const L=wcfLines(proj),w=proj.wcf,date=wcfDate(proj);
-  if(!L.length)return'<div class="rp-item"><h4>Work Completion Form</h4><div class="dt">No WCF lines yet.</div></div>';
-  const rows=L.map(l=>`<tr><td>${l.no}</td><td>${esc(l.sor)}</td><td>${esc(l.name)}</td><td>${esc(l.type)}</td><td class="r">${l.qty}</td><td>${esc(l.uom)}</td><td class="r">${money2(l.price)}</td><td class="r">${money2(l.amt)}</td><td class="r">${l.missing?"–":l.pct+"%"}</td><td class="r">${money2(l.tot)}</td></tr>`).join("");
-  const head=[w.job&&"Job: "+w.job,w.ref&&"CBRE ref: "+w.ref,w.po&&"PO: "+w.po,w.req&&"Requested by: "+w.req,"Service date: "+date].filter(Boolean).map(esc).join(" · ");
-  return `<div class="rp-item" style="break-before:page"><h4>Work Completion Form</h4>
-    <div class="dt" style="margin-bottom:8px">${head}</div>
-    <table class="wcf-tbl"><thead><tr><th>S/N</th><th>SOR ref</th><th>Description</th><th>Work type</th><th class="r">Qty</th><th>UOM</th><th class="r">Unit ($)</th><th class="r">Amount ($)</th><th class="r">Adj.</th><th class="r">Total ($)</th></tr></thead>
-    <tbody>${rows}</tbody><tfoot><tr><td colspan="9" class="r"><b>Total before GST ($)</b></td><td class="r"><b>${money2(wcfGrand(L))}</b></td></tr></tfoot></table>
-    ${L.some(l=>l.missing)?'<div class="dt" style="color:#c62828;margin-top:6px">Some lines have no adjustment rate for their work type, so they show no adjustment.</div>':""}
-    <div class="wcf-sign"><div><b>Contractor</b><br>Supervisor name, signature, date, stamp</div><div><b>Client certification</b><br>Job completed and costing correct. Name, signature, date.</div></div></div>`;
+  const d2=d=>d?new Date(d+"T00:00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"2-digit"}).replace(/ /g,"-"):"";
+  const hd=[["CBRE Ref. No.:",w.ref],["Requested By:",w.req],["JTC PO Number:",w.po],["Service Date:",d2(date)],["Description:",w.job],["Location:",w.loc]];
+  const hdHtml=hd.map(([k,v])=>`<tr><td class="wk">${k}</td><td>${esc(v||"")}</td></tr>`).join("");
+  const blank='<tr>'+'<td>&nbsp;</td>'.repeat(11)+'</tr>';
+  const rows=L.map(l=>`<tr><td class="c">${l.no}</td><td>${esc(l.sor)}</td><td>${esc(l.name)}</td><td class="r">${l.qty}</td><td class="c">${esc(l.uom)}</td><td class="r">$ ${money2(l.price)}</td><td class="r">$ ${money2(l.amt)}</td><td>${esc(l.type)}</td><td class="c">${l.missing?"–":l.pct}</td><td class="r">$ ${money2(l.tot)}</td><td>${esc(l.remarks)}</td></tr>`).join("")+blank.repeat(Math.max(0,5-L.length));
+  return `<div class="wcf-page">
+    <div style="text-align:right;min-height:58px">${companyLogo?`<img src="${companyLogo}" style="max-height:58px">`:""}</div>
+    <div class="wcf-title">Work Completion Form</div>
+    <table class="wcf-hd">${hdHtml}</table>
+    <table class="wcf-tbl2"><thead><tr><th>S/N</th><th>Ref No.<br>(SOR/Star Rate)</th><th>Description</th><th>Quantity</th><th>UOM</th><th>Unit Price<br>($) (B)</th><th>Amount ($)<br>(C) = (A) x (B)</th><th>Type of Service</th><th>Adjustment<br>(%)</th><th>Total Amount ($)<br>(C) x (D)</th><th>Remarks</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td colspan="9" class="r"><b>Total Amount (Before GST)</b></td><td class="r"><b>$ ${money2(wcfGrand(L))}</b></td><td></td></tr></tfoot></table>
+    <div class="wcf-stmt">This is to confirm the above works have been carried out satisfactorily in accordance with the contract specifications.</div>
+    <div class="wcf-sign">
+      <div><b>Completed by:</b><div class="sigbox"></div>Name / Position: ______________________<br>Date: ______________________</div>
+      <div><b>Verified by:</b><div class="sigbox"></div>Name / Position: ______________________<br>Date: ______________________</div>
+    </div>
+    <div class="wcf-cert"><b>Certified Job Completed &amp; Costing correct by:</b><br><br>Name / Signature (client officer): ______________________ &nbsp; Date: ______________</div>
+    <div class="wcf-rembox"><div class="wcf-remh">Remarks</div><div class="wcf-remb">${esc(w.remarks||"")}</div></div>
+  </div>`;
 }
-
 function status(i){
   if(i.before.length&&i.after.length)return'<span class="st d">Complete</span>';
   if(i.before.length)return`<span class="st w">Waiting for ${esc(cfg.al.toLowerCase())}</span>`;
@@ -662,7 +711,7 @@ function report(){
       <div class="rp-cols"><div><b>${esc(cfg.bl.toUpperCase())}</b>${col(i.before)}</div><div><b>${esc(cfg.al.toUpperCase())}</b>${col(i.after)}</div></div>
       ${i.extra.length?`<div style="margin-top:8px"><b style="font-size:12px;color:#555">${esc(cfg.xlabel.toUpperCase())}</b><div class="rp-ex">${i.extra.map(p=>`<img src="${p.d}">`).join("")}</div></div>`:""}</div>`;
   });
-  h+=wcfReportHtml();
+  { const k=h.indexOf("<h2"); h=h.slice(0,k)+wcfReportHtml()+h.slice(k); }
   $("#main").innerHTML=h;$("#rb").onclick=renderProject;$("#rw").onclick=exportDocx;window.scrollTo(0,0);
   const rd=$("#rdate");if(rd)rd.oninput=e=>{const t=new Date(e.target.value).getTime();if(!isNaN(t)){reportT=t;$("#rhead").textContent=fmt(t)}};
 }
@@ -696,18 +745,38 @@ const xe=s=>String(s??"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;
 const imgSize=d=>new Promise(r=>{const i=new Image();i.onload=()=>r([i.naturalWidth,i.naturalHeight]);i.onerror=()=>r([4,3]);i.src=d});
 async function buildDocx(pr,its){
   const media=[];let did=1;
-  async function pic(p,maxW,maxH){
+  async function pic(p,maxW,maxH,noCap){
     const [w,h]=await imgSize(p.d),k=Math.min(maxW/w,maxH/h),cx=Math.round(w*k),cy=Math.round(h*k);
     media.push({name:"word/media/img"+(media.length+1)+".jpg",data:await photoBytes(p.path)});
     const id=media.length,n=did++;
-    const cap=cfg.stamp?para(fmt(p.t),{sz:16,color:"666666",after:40}):"";
+    const cap=(cfg.stamp&&!noCap)?para(fmt(p.t),{sz:16,color:"666666",after:40}):"";
     return cap+`<w:p><w:pPr><w:spacing w:after="60"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${n}" name="Photo ${n}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${n}" name="img${id}.jpg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
   }
   const para=(t,o={})=>`<w:p><w:pPr><w:spacing w:before="${o.before||0}" w:after="${o.after||60}"/>${o.keep?"<w:keepNext/>":""}</w:pPr><w:r><w:rPr>${o.b?"<w:b/>":""}${o.color?`<w:color w:val="${o.color}"/>`:""}<w:sz w:val="${o.sz||22}"/></w:rPr><w:t xml:space="preserve">${xe(t)}</w:t></w:r></w:p>`;
   const bd='<w:tblBorders>'+["top","left","bottom","right","insideH","insideV"].map(s=>`<w:${s} w:val="single" w:sz="4" w:space="0" w:color="BFC5D0"/>`).join("")+'</w:tblBorders>';
   const cell=(w,inner,shade)=>`<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${shade?`<w:shd w:val="clear" w:color="auto" w:fill="${shade}"/>`:""}</w:tcPr>${inner}</w:tc>`;
   const tbl=(cols,rows)=>`<w:tbl><w:tblPr><w:tblW w:w="${cols.reduce((a,b)=>a+b,0)}" w:type="dxa"/>${bd}<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${cols.map(c=>`<w:gridCol w:w="${c}"/>`).join("")}</w:tblGrid>${rows.map(r=>`<w:tr><w:trPr><w:cantSplit/></w:trPr>${r}</w:tr>`).join("")}</w:tbl>`;
-  let body=para(pr.name,{b:1,sz:36,after:40})+para(cfg.bl+" / "+cfg.al+" photo report"+(cfg.stamp?" · "+fmt(view==="report"?reportT:Date.now()):""),{color:"666666",after:200});
+  let body="";
+  if(pr.wcf&&pr.wcf.on){
+    const L=wcfLines(pr),w=pr.wcf,date=wcfDate(pr);
+    if(companyLogo){const lg=await pic({d:companyLogo,path:"_company/logo.jpg"},1800000,700000,true);body+=lg.replace('<w:pPr><w:spacing w:after="60"/></w:pPr>','<w:pPr><w:jc w:val="right"/><w:spacing w:after="60"/></w:pPr>')}
+    body+='<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="120" w:after="200"/></w:pPr><w:r><w:rPr><w:b/><w:u w:val="single"/><w:sz w:val="30"/></w:rPr><w:t>Work Completion Form</w:t></w:r></w:p>';
+    const d2=d=>d?new Date(d+"T00:00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"2-digit"}).replace(/ /g,"-"):"";
+    [["CBRE Ref. No.: ",w.ref],["Requested By: ",w.req],["JTC PO Number: ",w.po],["Service Date: ",d2(date)],["Description: ",w.job],["Location: ",w.loc]].forEach(([k,v])=>{body+=para(k+(v||""),{sz:20,after:30})});
+    const cols=[400,950,1500,650,500,800,900,1000,700,1000,1138];
+    const rowN=(vals,hd)=>vals.map((v,k)=>cell(cols[k],para(String(v),{sz:16,after:0,b:hd,color:hd?"FFFFFF":undefined}),hd?"1C3D7A":null)).join("");
+    const blankRow=rowN(Array(11).fill(""),false);
+    const lines=L.map(l=>rowN([l.no,l.sor,l.name,l.qty,l.uom,money2(l.price),money2(l.amt),l.type,l.missing?"–":l.pct,money2(l.tot),l.remarks],false));
+    body+=tbl(cols,[rowN(["S/N","Ref No. (SOR/Star Rate)","Description","Quantity","UOM","Unit Price ($)","Amount ($)","Type of Service","Adj. (%)","Total ($)","Remarks"],true),...lines,...Array(Math.max(0,5-L.length)).fill(blankRow)]);
+    body+=para("Total Amount (Before GST): $ "+money2(wcfGrand(L)),{b:1,sz:20,before:80});
+    body+=para("This is to confirm the above works have been carried out satisfactorily in accordance with the contract specifications.",{sz:18,before:120});
+    body+=para("Completed by: ______________________   Date: ______________",{sz:20,before:360});
+    body+=para("Verified by: ______________________   Date: ______________",{sz:20,before:200});
+    body+=para("Certified Job Completed & Costing correct by: ______________________   Date: ______________",{sz:20,before:300});
+    body+=para("Remarks: "+(w.remarks||""),{sz:20,before:200});
+    body+='<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+  }
+  body+=para(pr.name,{b:1,sz:36,after:40})+para(cfg.bl+" / "+cfg.al+" photo report"+(cfg.stamp?" · "+fmt(view==="report"?reportT:Date.now()):""),{color:"666666",after:200});
   let n=0;
   for(const i of its){
     n++;
@@ -725,18 +794,6 @@ async function buildDocx(pr,its){
       body+=tbl([3212,3213,3213],[cs]);
     }
     body+=para("",{after:0});
-  }
-  if(pr.wcf&&pr.wcf.on){
-    const L=wcfLines(pr),w=pr.wcf,date=wcfDate(pr);
-    body+=para("Work Completion Form",{b:1,sz:28,before:360,keep:1});
-    body+=para([w.job&&"Job: "+w.job,w.ref&&"CBRE ref: "+w.ref,w.po&&"PO: "+w.po,w.req&&"Requested by: "+w.req,"Service date: "+date].filter(Boolean).join("   "),{sz:20,color:"555555"});
-    if(L.length){
-      const cols=[450,1000,2200,1150,650,650,850,950,650,950];
-      const rowX=(vals,hd)=>vals.map((v,k)=>cell(cols[k],para(String(v),{sz:17,after:0,b:hd}),hd?"E9ECF2":null)).join("");
-      body+=tbl(cols,[rowX(["S/N","SOR ref","Description","Work type","Qty","UOM","Unit $","Amount $","Adj.","Total $"],1),
-        ...L.map(l=>rowX([l.no,l.sor,l.name,l.type,l.qty,l.uom,money2(l.price),money2(l.amt),l.missing?"–":l.pct+"%",money2(l.tot)]))]);
-      body+=para("Total before GST: $"+money2(wcfGrand(L)),{b:1,sz:22,before:120});
-    }
   }
   const NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"';
   const doc=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${NS}><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`;
@@ -942,7 +999,7 @@ $("#jsonin").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!
 
 /* ---------- login + start ---------- */
 function showLogin(){me=null;isAdmin=false;$("#login").classList.add("on");$("#main").innerHTML="";$("#fab").style.display="none";$("#back").style.display="none";$("#lp").value=""}
-async function afterLogin(u){me=u;isAdmin=(u.email||"").toLowerCase()==="admin"+DOMAIN;$("#login").classList.remove("on");await loadRates();await home()}
+async function afterLogin(u){me=u;isAdmin=(u.email||"").toLowerCase()==="admin"+DOMAIN;$("#login").classList.remove("on");await Promise.all([loadRates(),loadLogo()]);await home()}
 $("#lbtn").onclick=async()=>{
   const u=$("#lu").value.trim().toLowerCase().replace(/\s+/g,""),p=$("#lp").value;
   if(!u||!p)return;
