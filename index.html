@@ -768,8 +768,9 @@ async function buildDocx(pr,its){
     const rowN=(vals,hd)=>vals.map((v,k)=>cell(cols[k],para(String(v),{sz:16,after:0,b:hd,color:hd?"FFFFFF":undefined}),hd?"1C3D7A":null)).join("");
     const blankRow=rowN(Array(11).fill(""),false);
     const lines=L.map(l=>rowN([l.no,l.sor,l.name,l.qty,l.uom,money2(l.price),money2(l.amt),l.type,l.missing?"–":l.pct,money2(l.tot),l.remarks],false));
-    body+=tbl(cols,[rowN(["S/N","Ref No. (SOR/Star Rate)","Description","Quantity","UOM","Unit Price ($)","Amount ($)","Type of Service","Adj. (%)","Total ($)","Remarks"],true),...lines,...Array(Math.max(0,5-L.length)).fill(blankRow)]);
-    body+=para("Total Amount (Before GST): $ "+money2(wcfGrand(L)),{b:1,sz:20,before:80});
+    body+=tbl(cols,[rowN(["S/N","Ref No. (SOR/Star Rate)","Description","Quantity","UOM","Unit Price ($)","Amount ($)","Type of Service","Adj. (%)","Total ($)","Remarks"],true),...lines,...Array(Math.max(0,5-L.length)).fill(blankRow),
+      `<w:tc><w:tcPr><w:tcW w:w="${cols.slice(0,9).reduce((a,b)=>a+b,0)}" w:type="dxa"/><w:gridSpan w:val="9"/></w:tcPr><w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="16"/></w:rPr><w:t xml:space="preserve">Total Amount (Before GST)</w:t></w:r></w:p></w:tc>`+
+      cell(cols[9],para("$ "+money2(wcfGrand(L)),{b:1,sz:16,after:0}),null)+cell(cols[10],para("",{sz:16,after:0}),null)]);
     body+=para("This is to confirm the above works have been carried out satisfactorily in accordance with the contract specifications.",{sz:18,before:120});
     body+=para("Completed by: ______________________   Date: ______________",{sz:20,before:360});
     body+=para("Verified by: ______________________   Date: ______________",{sz:20,before:200});
