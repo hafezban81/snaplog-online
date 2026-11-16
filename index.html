@@ -68,7 +68,7 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
 .sheet .stick{position:sticky;bottom:-16px;background:var(--card);padding:10px 0 4px;margin-bottom:-4px;border-top:1px solid var(--line)}
 .sheet h3{margin:0 0 10px}
 .sheet label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
-.sheet input[type=text],.sheet input[type=password],.sheet input[type=datetime-local],.sheet select{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font:inherit}
+.sheet input[type=text],.sheet input[type=password],.sheet input[type=date],.sheet input[type=datetime-local],.sheet select{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font:inherit}
 .sheet .acts{margin-top:14px;justify-content:flex-end}
 .foot{color:var(--mute);font-size:12px;text-align:center;margin-top:18px}
 #report{display:none}
@@ -80,6 +80,15 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
 .xtra{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)}
 .rp-cols b{font-size:12px;color:#555;display:block;margin-bottom:4px}
 .rp-cols img{width:100%;border-radius:4px;margin-bottom:4px;display:block}
+.wl{margin-top:8px;border-top:1px dashed var(--line);padding-top:6px}
+.wl .dt{margin:0 0 3px}
+.wl input,.wl select{width:100%;font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:#fff;margin-bottom:4px}
+.wl .qrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px}
+.wcf-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.wcf-tbl th,.wcf-tbl td{border:1px solid #bbb;padding:4px;text-align:left;vertical-align:top}
+.wcf-tbl .r{text-align:right}
+.wcf-sign{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+.wcf-sign div{border:1px solid #bbb;height:90px;padding:6px;font-size:12px;color:#666}
 @page{size:A4;margin:0}
 @media print{
   header.top,.fab,.noprint{display:none!important}
@@ -145,6 +154,19 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
   </div>
 </div>
 
+<div class="modal" id="wcfm">
+  <div class="sheet">
+    <h3>Work Completion Form (optional)</h3>
+    <label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:14px;margin-top:4px"><input type="checkbox" id="wcfOn" style="width:auto"> Use a WCF for this project</label>
+    <label>Client / job</label><input type="text" id="wcfJob">
+    <label>CBRE ref no.</label><input type="text" id="wcfRef">
+    <label>PO no.</label><input type="text" id="wcfPo">
+    <label>Requested by</label><input type="text" id="wcfReq">
+    <label>Service date (the rate for each work type is picked for this date)</label><input type="date" id="wcfDate">
+    <div class="acts stick" style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" id="wcfCancel">Cancel</button><button class="btn primary" id="wcfSave">Save</button></div>
+  </div>
+</div>
+
 <div class="modal" id="editor">
   <div class="etb">
     <button class="btn sm tool on" data-tool="p">✏️ Draw</button>
@@ -185,7 +207,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-15.6";
+const APP_VER="2026-11-16.1";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -209,10 +231,10 @@ async function signedUrls(paths){
   return m;
 }
 async function fetchItems(pid){
-  const rows=J(await sb.from("snaplog_items").select("id,name,notes,position,snaplog_photos(id,kind,path,orig_path,marks,created_at)").eq("project_id",pid).order("position"));
+  const rows=J(await sb.from("snaplog_items").select("id,name,notes,position,wcf,snaplog_photos(id,kind,path,orig_path,marks,created_at)").eq("project_id",pid).order("position"));
   const urls=await signedUrls(rows.flatMap(r=>r.snaplog_photos.map(p=>p.path)));
   return rows.map(r=>{
-    const it={id:r.id,position:r.position,name:r.name||"",notes:r.notes||"",before:[],after:[],extra:[]};
+    const it={id:r.id,position:r.position,name:r.name||"",notes:r.notes||"",wcf:r.wcf||null,before:[],after:[],extra:[]};
     r.snaplog_photos.slice().sort((a,b)=>a.created_at<b.created_at?-1:a.created_at>b.created_at?1:0).forEach(p=>{
       if(it[p.kind])it[p.kind].push({id:p.id,path:p.path,d:urls[p.path]||"",o:p.orig_path||undefined,m:p.marks||undefined,t:new Date(p.created_at).getTime()});
     });
@@ -237,7 +259,7 @@ function compress(file,label){return new Promise((res,rej)=>{
   img.src=url;});}
 
 /* ---------- state ---------- */
-let view="home",proj=null,items=[],filter="all",viewing=null;
+let view="home",proj=null,items=[],filter="all",viewing=null,rates=[];
 
 /* ---------- prompt dialog ---------- */
 function ask(title,val="",type="text"){return new Promise(res=>{
@@ -274,11 +296,79 @@ async function home(){
 /* ---------- PROJECT ---------- */
 async function openProject(id){
   busy("Loading…");
-  const r=await sb.from("snaplog_projects").select("id,name").eq("id",id).maybeSingle();
+  const r=await sb.from("snaplog_projects").select("id,name,wcf").eq("id",id).maybeSingle();
   proj=r.data;if(!proj){busy(false);return home()}
-  view="proj";filter="all";await loadItems();busy(false);renderProject();
+  view="proj";filter="all";await Promise.all([loadItems(),loadRates()]);busy(false);renderProject();
 }
 async function loadItems(){items=await fetchItems(proj.id)}
+
+/* ---------- WCF (optional work completion form) ---------- */
+async function loadRates(){
+  try{rates=J(await sb.from("snaplog_wcf_rates").select("work_type,adj_pct,effective_from").order("effective_from",{ascending:false}))}
+  catch{rates=[]}
+}
+const todayISO=()=>new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Singapore"});
+const money2=n=>Number(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+function wcfDate(p){return (p&&p.wcf&&p.wcf.date)||todayISO()}
+function rateFor(type,date){
+  const r=rates.find(x=>x.work_type===type&&x.effective_from<=date);
+  return r?+r.adj_pct:null;
+}
+function wcfCalc(w,date){
+  const q=+w.qty||0,pr=+w.price||0,pct=rateFor(w.type,date);
+  return{amt:q*pr,pct,tot:q*pr*(1+(pct||0)/100),missing:pct==null};
+}
+function wcfTypes(){return [...new Set(rates.map(r=>r.work_type))]}
+function wcfLines(prj,its){
+  const date=wcfDate(prj),out=[];
+  its.forEach((i,n)=>{
+    if(i.wcf&&(i.wcf.sor||i.wcf.qty||i.wcf.price))
+      out.push({no:n+1,name:iname(i),sor:i.wcf.sor||"",type:i.wcf.type||"",qty:i.wcf.qty||0,uom:i.wcf.uom||"",price:i.wcf.price||0,...wcfCalc(i.wcf,date)});
+  });
+  return out;
+}
+const wcfGrand=lines=>lines.reduce((a,l)=>a+l.tot,0);
+function wcfBlock(i){
+  if(!proj.wcf||!proj.wcf.on)return"";
+  const w=i.wcf||{},date=wcfDate(proj),c=wcfCalc(w,date),types=wcfTypes();
+  if(w.type&&!types.includes(w.type))types.unshift(w.type);
+  const opts=['<option value="">Work type…</option>',...types.map(t=>`<option ${t===w.type?"selected":""}>${esc(t)}</option>`)].join("");
+  const warn=w.type&&c.missing?`<div class="dt" style="color:var(--bad)">No rate for ${esc(w.type)} on ${esc(date)}. Add it to the rates table.</div>`:"";
+  const tot=(w.qty||w.price)?`<div class="dt">Adj. ${c.pct==null?"–":c.pct+"%"} · Total $${money2(c.tot)}</div>`:"";
+  return `<div class="wl" data-wi="${i.id}">
+    <div class="dt">WCF line</div>
+    <input data-w="sor" placeholder="SOR ref" value="${esc(w.sor)}">
+    <select data-w="type">${opts}</select>
+    <div class="qrow"><input data-w="qty" type="number" step="0.01" placeholder="Qty" value="${esc(w.qty)}"><input data-w="uom" placeholder="UOM" value="${esc(w.uom)}"><input data-w="price" type="number" step="0.01" placeholder="Unit $" value="${esc(w.price)}"></div>
+    ${tot}${warn}</div>`;
+}
+function openWcfSheet(){
+  const w=proj.wcf||{};
+  $("#wcfOn").checked=!!w.on;$("#wcfJob").value=w.job||"";$("#wcfRef").value=w.ref||"";$("#wcfPo").value=w.po||"";$("#wcfReq").value=w.req||"";$("#wcfDate").value=w.date||"";
+  $("#wcfm").classList.add("on");
+}
+$("#wcfCancel").onclick=()=>$("#wcfm").classList.remove("on");
+$("#wcfSave").onclick=async()=>{
+  const w={on:$("#wcfOn").checked,job:$("#wcfJob").value.trim(),ref:$("#wcfRef").value.trim(),po:$("#wcfPo").value.trim(),req:$("#wcfReq").value.trim(),date:$("#wcfDate").value||""};
+  busy("Saving…");
+  try{J(await sb.from("snaplog_projects").update({wcf:w}).eq("id",proj.id));proj.wcf=w;logAct(w.on?"Turned on WCF":"Turned off WCF",proj.name)}
+  catch(e){alert("Could not save the WCF settings: "+(e.message||e));return}
+  finally{busy(false)}
+  $("#wcfm").classList.remove("on");renderProject();
+};
+function wcfReportHtml(){
+  if(!proj.wcf||!proj.wcf.on)return"";
+  const L=wcfLines(proj,items),w=proj.wcf,date=wcfDate(proj);
+  if(!L.length)return'<div class="rp-item"><h4>Work Completion Form</h4><div class="dt">No WCF lines yet.</div></div>';
+  const rows=L.map(l=>`<tr><td>${l.no}</td><td>${esc(l.sor)}</td><td>${esc(l.name)}</td><td>${esc(l.type)}</td><td class="r">${l.qty}</td><td>${esc(l.uom)}</td><td class="r">${money2(l.price)}</td><td class="r">${money2(l.amt)}</td><td class="r">${l.missing?"–":l.pct+"%"}</td><td class="r">${money2(l.tot)}</td></tr>`).join("");
+  const head=[w.job&&"Job: "+w.job,w.ref&&"CBRE ref: "+w.ref,w.po&&"PO: "+w.po,w.req&&"Requested by: "+w.req,"Service date: "+date].filter(Boolean).map(esc).join(" · ");
+  return `<div class="rp-item" style="break-before:page"><h4>Work Completion Form</h4>
+    <div class="dt" style="margin-bottom:8px">${head}</div>
+    <table class="wcf-tbl"><thead><tr><th>S/N</th><th>SOR ref</th><th>Description</th><th>Work type</th><th class="r">Qty</th><th>UOM</th><th class="r">Unit ($)</th><th class="r">Amount ($)</th><th class="r">Adj.</th><th class="r">Total ($)</th></tr></thead>
+    <tbody>${rows}</tbody><tfoot><tr><td colspan="9" class="r"><b>Total before GST ($)</b></td><td class="r"><b>${money2(wcfGrand(L))}</b></td></tr></tfoot></table>
+    ${L.some(l=>l.missing)?'<div class="dt" style="color:#c62828;margin-top:6px">Some lines have no adjustment rate for their work type, so they show no adjustment.</div>':""}
+    <div class="wcf-sign"><div><b>Contractor</b><br>Supervisor name, signature, date, stamp</div><div><b>Client certification</b><br>Job completed and costing correct. Name, signature, date.</div></div></div>`;
+}
 
 function status(i){
   if(i.before.length&&i.after.length)return'<span class="st d">Complete</span>';
@@ -307,7 +397,7 @@ function renderProject(){
   const list=items.filter(i=>filter==="all"||(filter==="wait"&&i.before.length&&!i.after.length)||(filter==="done"&&i.before.length&&i.after.length));
   let h=`<div class="noprint" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
     <span style="color:var(--mute);font-size:13px;flex:1">${items.length} items · ${nb} ${esc(cfg.bl.toLowerCase())} · ${na} ${esc(cfg.al.toLowerCase())}</span>
-    <button class="btn sm" id="ren">Rename</button><button class="btn sm" id="rep">📄 Report / PDF</button><button class="btn sm" id="wrd">📝 Word</button><button class="btn sm" id="bkpp">💾 Backup</button>${isAdmin?`<button class="btn sm" id="jsonp">⬇ JSON</button>`:""}<button class="btn sm danger" id="delp">Delete</button></div>
+    <button class="btn sm" id="wcfb">📑 WCF${proj.wcf&&proj.wcf.on?" ✓":""}</button><button class="btn sm" id="ren">Rename</button><button class="btn sm" id="rep">📄 Report / PDF</button><button class="btn sm" id="wrd">📝 Word</button><button class="btn sm" id="bkpp">💾 Backup</button>${isAdmin?`<button class="btn sm" id="jsonp">⬇ JSON</button>`:""}<button class="btn sm danger" id="delp">Delete</button></div>
   <div class="chips noprint">
     <button class="chip ${filter==="all"?"on":""}" data-f="all">All (${items.length})</button>
     <button class="chip ${filter==="wait"?"on":""}" data-f="wait">Need ${esc(cfg.al.toLowerCase())} photo (${items.filter(i=>i.before.length&&!i.after.length).length})</button>
@@ -319,7 +409,7 @@ function renderProject(){
     for(const i of list){
       h+=`<div class="row"><div><div class="num"><span>#${items.indexOf(i)+1}</span><button class="btn sm danger" data-del="${i.id}" style="padding:1px 7px">✕</button></div>
         <textarea class="nm" rows="2" placeholder="Item / location" data-f="name" data-i="${i.id}">${esc(i.name)}</textarea>
-        <textarea class="nt" rows="1" placeholder="Notes" data-f="notes" data-i="${i.id}">${esc(i.notes)}</textarea>${status(i)}</div>
+        <textarea class="nt" rows="1" placeholder="Notes" data-f="notes" data-i="${i.id}">${esc(i.notes)}</textarea>${status(i)}${wcfBlock(i)}</div>
         <div>${cell(i,"before")}</div><div>${cell(i,"after")}<div class="xtra">${cell(i,"extra")}</div></div></div>`;
     }
   }
@@ -348,6 +438,17 @@ function bindProject(){
   const jp=$("#jsonp");if(jp)jp.onclick=()=>exportJson(proj);
   const rp=$("#rep");if(rp)rp.onclick=report;
   const wr=$("#wrd");if(wr)wr.onclick=exportDocx;
+  const wb=$("#wcfb");if(wb)wb.onclick=openWcfSheet;
+  m.querySelectorAll(".wl").forEach(box=>{
+    box.querySelectorAll("[data-w]").forEach(el=>el.onchange=async()=>{
+      const i=items.find(x=>x.id===box.dataset.wi),w={};
+      box.querySelectorAll("[data-w]").forEach(f=>{const k=f.dataset.w;w[k]=(k==="qty"||k==="price")?(parseFloat(f.value)||0):f.value.trim()});
+      i.wcf=w;
+      try{J(await sb.from("snaplog_items").update({wcf:w}).eq("id",i.id));logAct("Edited WCF line",proj.name+": "+iname(i))}
+      catch(e){alert("Could not save the WCF line: "+(e.message||e))}
+      renderProject();
+    });
+  });
 }
 
 async function addPhotos(inp){
@@ -551,6 +652,7 @@ function report(){
       <div class="rp-cols"><div><b>${esc(cfg.bl.toUpperCase())}</b>${col(i.before)}</div><div><b>${esc(cfg.al.toUpperCase())}</b>${col(i.after)}</div></div>
       ${i.extra.length?`<div style="margin-top:8px"><b style="font-size:12px;color:#555">${esc(cfg.xlabel.toUpperCase())}</b><div class="rp-ex">${i.extra.map(p=>`<img src="${p.d}">`).join("")}</div></div>`:""}</div>`;
   });
+  h+=wcfReportHtml();
   $("#main").innerHTML=h;$("#rb").onclick=renderProject;$("#rw").onclick=exportDocx;window.scrollTo(0,0);
   const rd=$("#rdate");if(rd)rd.oninput=e=>{const t=new Date(e.target.value).getTime();if(!isNaN(t)){reportT=t;$("#rhead").textContent=fmt(t)}};
 }
@@ -614,6 +716,18 @@ async function buildDocx(pr,its){
     }
     body+=para("",{after:0});
   }
+  if(pr.wcf&&pr.wcf.on){
+    const L=wcfLines(pr,its),w=pr.wcf,date=wcfDate(pr);
+    body+=para("Work Completion Form",{b:1,sz:28,before:360,keep:1});
+    body+=para([w.job&&"Job: "+w.job,w.ref&&"CBRE ref: "+w.ref,w.po&&"PO: "+w.po,w.req&&"Requested by: "+w.req,"Service date: "+date].filter(Boolean).join("   "),{sz:20,color:"555555"});
+    if(L.length){
+      const cols=[450,1000,2200,1150,650,650,850,950,650,950];
+      const rowX=(vals,hd)=>vals.map((v,k)=>cell(cols[k],para(String(v),{sz:17,after:0,b:hd}),hd?"E9ECF2":null)).join("");
+      body+=tbl(cols,[rowX(["S/N","SOR ref","Description","Work type","Qty","UOM","Unit $","Amount $","Adj.","Total $"],1),
+        ...L.map(l=>rowX([l.no,l.sor,l.name,l.type,l.qty,l.uom,money2(l.price),money2(l.amt),l.missing?"–":l.pct+"%",money2(l.tot)]))]);
+      body+=para("Total before GST: $"+money2(wcfGrand(L)),{b:1,sz:22,before:120});
+    }
+  }
   const NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"';
   const doc=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${NS}><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`;
   const rels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${media.map((m,k)=>`<Relationship Id="rId${k+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${m.name.split("/").pop()}"/>`).join("")}</Relationships>`;
@@ -633,7 +747,8 @@ async function fullBackup(only){
   const files=[],names=new Set();
   try{
     busy("Preparing…");
-    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name").is("deleted_at",null).order("created_at"));
+    await loadRates();
+    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name,wcf").is("deleted_at",null).order("created_at"));
     let pi=0;
     for(const pr of prs){
       pi++;
@@ -724,8 +839,8 @@ async function exportJson(only){
   if(!confirm(only?"Download this project as a .json data file?":"Download ALL projects as one .json data file? Large backups can take a few minutes."))return;
   try{
     busy("Preparing…");
-    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name,created_at").is("deleted_at",null).order("created_at"));
-    const projects=prs.map(p=>({id:p.id,name:p.name,created:p.created_at?new Date(p.created_at).getTime():Date.now()}));
+    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name,created_at,wcf").is("deleted_at",null).order("created_at"));
+    const projects=prs.map(p=>({id:p.id,name:p.name,created:p.created_at?new Date(p.created_at).getTime():Date.now(),...(p.wcf?{wcf:p.wcf}:{})}));
     const parts=['{"v":1,"projects":'+JSON.stringify(projects)+',"items":['];
     let first=true,pi=0;
     for(const pr of prs){
@@ -734,7 +849,7 @@ async function exportJson(only){
       for(const [idx,i] of its.entries()){
         busy(`Project ${pi}/${prs.length} – item ${idx+1}/${its.length}`);
         const conv=async p=>{const q={d:await blobToDataURL(await dlb(p.path)),t:p.t};if(p.o){q.o=await blobToDataURL(await dlb(p.o));q.m=p.m}return q};
-        const o={id:i.id,projectId:pr.id,order:i.position,name:i.name,notes:i.notes,before:[],after:[],extra:[]};
+        const o={id:i.id,projectId:pr.id,order:i.position,name:i.name,notes:i.notes,...(i.wcf?{wcf:i.wcf}:{}),before:[],after:[],extra:[]};
         for(const k of ["before","after","extra"])for(const p of i[k])o[k].push(await conv(p));
         parts.push((first?"":",")+JSON.stringify(o));first=false;
       }
@@ -755,10 +870,10 @@ async function importJson(file){
   try{
     for(const p of d.projects){
       busy("Importing "+(p.name||"project")+"…");
-      const np=J(await sb.from("snaplog_projects").insert({name:p.name||"Imported project",created_at:new Date(p.created||Date.now()).toISOString()}).select("id").single());
+      const np=J(await sb.from("snaplog_projects").insert({name:p.name||"Imported project",created_at:new Date(p.created||Date.now()).toISOString(),...(p.wcf?{wcf:p.wcf}:{})}).select("id").single());
       const its=d.items.filter(i=>i.projectId===p.id).sort((a,b)=>(a.order||0)-(b.order||0));
       for(const [idx,i] of its.entries()){
-        const ni=J(await sb.from("snaplog_items").insert({project_id:np.id,position:Date.now()+idx,name:i.name||"",notes:i.notes||""}).select("id").single());
+        const ni=J(await sb.from("snaplog_items").insert({project_id:np.id,position:Date.now()+idx,name:i.name||"",notes:i.notes||"",...(i.wcf?{wcf:i.wcf}:{})}).select("id").single());
         for(const kind of KINDS){
           for(const q of (i[kind]||[])){
             if(!q||!q.d)continue;
@@ -817,7 +932,7 @@ $("#jsonin").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!
 
 /* ---------- login + start ---------- */
 function showLogin(){me=null;isAdmin=false;$("#login").classList.add("on");$("#main").innerHTML="";$("#fab").style.display="none";$("#back").style.display="none";$("#lp").value=""}
-async function afterLogin(u){me=u;isAdmin=(u.email||"").toLowerCase()==="admin"+DOMAIN;$("#login").classList.remove("on");await home()}
+async function afterLogin(u){me=u;isAdmin=(u.email||"").toLowerCase()==="admin"+DOMAIN;$("#login").classList.remove("on");await loadRates();await home()}
 $("#lbtn").onclick=async()=>{
   const u=$("#lu").value.trim().toLowerCase().replace(/\s+/g,""),p=$("#lp").value;
   if(!u||!p)return;
