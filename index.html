@@ -87,10 +87,10 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
 .wrow input,.wrow select{width:100%;font:inherit;font-size:13px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:#fff;min-width:0}
 .wcf-page{page-break-after:always;color:#000;font-size:12px}
 .wcf-page,.wcf-page *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-.wcf-title{text-align:center;font-weight:bold;text-decoration:underline;font-size:15px;margin:6px 0 12px}
-.wcf-hd{border-collapse:collapse;margin-bottom:10px}
-.wcf-hd td{padding:2px 4px;font-size:12px;border:0}
-.wcf-hd td.wk{width:130px}
+.wcf-title{text-align:center;font-weight:bold;text-decoration:underline;font-size:13px;margin:2px 0 8px}
+.wcf-hd{border-collapse:collapse;margin-bottom:6px}
+.wcf-hd td{padding:0 4px;font-size:10px;line-height:1.3;border:0}
+.wcf-hd td.wk{width:105px}
 .wcf-tbl2{width:100%;border-collapse:collapse;font-size:10px}
 .wcf-tbl2 th{background:#1c3d7a;color:#fff;padding:4px 3px;font-size:9.5px;border:1px solid #1c3d7a;font-weight:bold}
 .wcf-tbl2 td{border:1px solid #000;padding:4px 3px;vertical-align:top;height:22px}
@@ -232,7 +232,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-16.4";
+const APP_VER="2026-11-16.5";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
