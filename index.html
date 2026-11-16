@@ -80,10 +80,11 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
 .xtra{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)}
 .rp-cols b{font-size:12px;color:#555;display:block;margin-bottom:4px}
 .rp-cols img{width:100%;border-radius:4px;margin-bottom:4px;display:block}
-.wl{margin-top:8px;border-top:1px dashed var(--line);padding-top:6px}
-.wl .dt{margin:0 0 3px}
-.wl input,.wl select{width:100%;font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:#fff;margin-bottom:4px}
-.wl .qrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px}
+.wrow{border:1px solid var(--line);border-radius:8px;padding:6px;margin-bottom:8px;background:#fafbfd}
+.wrow .r{display:grid;gap:4px;margin-bottom:4px}
+.wrow .r1{grid-template-columns:1fr 2fr}
+.wrow .r2{grid-template-columns:1.6fr .8fr .7fr 1fr auto}
+.wrow input,.wrow select{width:100%;font:inherit;font-size:13px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:#fff;min-width:0}
 .wcf-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
 .wcf-tbl th,.wcf-tbl td{border:1px solid #bbb;padding:4px;text-align:left;vertical-align:top}
 .wcf-tbl .r{text-align:right}
@@ -163,6 +164,11 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
     <label>PO no.</label><input type="text" id="wcfPo">
     <label>Requested by</label><input type="text" id="wcfReq">
     <label>Service date (the rate for each work type is picked for this date)</label><input type="date" id="wcfDate">
+    <h3 style="margin:16px 0 4px;font-size:15px">WCF lines</h3>
+    <div class="dt" style="margin-bottom:6px">Separate from the photos. Enter each billable line once.</div>
+    <div id="wcfLines"></div>
+    <button class="btn sm" id="wcfAdd">+ Add line</button>
+    <div class="dt" id="wcfTot" style="margin-top:8px;font-size:13px"></div>
     <div class="acts stick" style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" id="wcfCancel">Cancel</button><button class="btn primary" id="wcfSave">Save</button></div>
   </div>
 </div>
@@ -207,7 +213,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-16.1";
+const APP_VER="2026-11-16.2";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -319,37 +325,50 @@ function wcfCalc(w,date){
   return{amt:q*pr,pct,tot:q*pr*(1+(pct||0)/100),missing:pct==null};
 }
 function wcfTypes(){return [...new Set(rates.map(r=>r.work_type))]}
-function wcfLines(prj,its){
-  const date=wcfDate(prj),out=[];
-  its.forEach((i,n)=>{
-    if(i.wcf&&(i.wcf.sor||i.wcf.qty||i.wcf.price))
-      out.push({no:n+1,name:iname(i),sor:i.wcf.sor||"",type:i.wcf.type||"",qty:i.wcf.qty||0,uom:i.wcf.uom||"",price:i.wcf.price||0,...wcfCalc(i.wcf,date)});
-  });
-  return out;
+function wcfLines(prj){
+  const date=wcfDate(prj),src=(prj.wcf&&prj.wcf.lines)||[];
+  return src.filter(l=>l.sor||l.desc||l.qty||l.price).map((l,n)=>({no:n+1,name:l.desc||"",sor:l.sor||"",type:l.type||"",qty:+l.qty||0,uom:l.uom||"",price:+l.price||0,...wcfCalc(l,date)}));
 }
 const wcfGrand=lines=>lines.reduce((a,l)=>a+l.tot,0);
-function wcfBlock(i){
-  if(!proj.wcf||!proj.wcf.on)return"";
-  const w=i.wcf||{},date=wcfDate(proj),c=wcfCalc(w,date),types=wcfTypes();
-  if(w.type&&!types.includes(w.type))types.unshift(w.type);
-  const opts=['<option value="">Work type…</option>',...types.map(t=>`<option ${t===w.type?"selected":""}>${esc(t)}</option>`)].join("");
-  const warn=w.type&&c.missing?`<div class="dt" style="color:var(--bad)">No rate for ${esc(w.type)} on ${esc(date)}. Add it to the rates table.</div>`:"";
-  const tot=(w.qty||w.price)?`<div class="dt">Adj. ${c.pct==null?"–":c.pct+"%"} · Total $${money2(c.tot)}</div>`:"";
-  return `<div class="wl" data-wi="${i.id}">
-    <div class="dt">WCF line</div>
-    <input data-w="sor" placeholder="SOR ref" value="${esc(w.sor)}">
-    <select data-w="type">${opts}</select>
-    <div class="qrow"><input data-w="qty" type="number" step="0.01" placeholder="Qty" value="${esc(w.qty)}"><input data-w="uom" placeholder="UOM" value="${esc(w.uom)}"><input data-w="price" type="number" step="0.01" placeholder="Unit $" value="${esc(w.price)}"></div>
-    ${tot}${warn}</div>`;
+let wcfDraft=[];
+function wcfRowHtml(l,n){
+  const types=wcfTypes();
+  if(l.type&&!types.includes(l.type))types.unshift(l.type);
+  const opts=['<option value="">Work type…</option>',...types.map(t=>`<option ${t===l.type?"selected":""}>${esc(t)}</option>`)].join("");
+  return `<div class="wrow">
+    <div class="r r1"><input data-k="sor" placeholder="SOR ref" value="${esc(l.sor)}"><input data-k="desc" placeholder="Description" value="${esc(l.desc)}"></div>
+    <div class="r r2"><select data-k="type">${opts}</select><input data-k="qty" type="number" step="0.01" placeholder="Qty" value="${esc(l.qty)}"><input data-k="uom" placeholder="UOM" value="${esc(l.uom)}"><input data-k="price" type="number" step="0.01" placeholder="Unit $" value="${esc(l.price)}"><button class="btn sm danger" data-rm="${n}">✕</button></div>
+  </div>`;
+}
+function wcfTotal(){
+  const date=$("#wcfDate").value||todayISO();
+  const L=wcfDraft.filter(l=>l.sor||l.desc||l.qty||l.price).map(l=>wcfCalc(l,date));
+  $("#wcfTot").textContent=L.length?"Total before GST: $"+money2(wcfGrand(L)):"";
+}
+function wcfRenderDraft(){
+  const box=$("#wcfLines");
+  box.innerHTML=wcfDraft.length?wcfDraft.map(wcfRowHtml).join(""):'<div class="dt">No lines yet. Tap + Add line.</div>';
+  box.querySelectorAll(".wrow").forEach((row,n)=>{
+    row.querySelectorAll("[data-k]").forEach(el=>{
+      const sync=()=>{const k=el.dataset.k;wcfDraft[n][k]=(k==="qty"||k==="price")?(parseFloat(el.value)||0):el.value;wcfTotal()};
+      el.oninput=sync;el.onchange=sync;
+    });
+    row.querySelector("[data-rm]").onclick=()=>{wcfDraft.splice(n,1);wcfRenderDraft()};
+  });
+  wcfTotal();
 }
 function openWcfSheet(){
   const w=proj.wcf||{};
   $("#wcfOn").checked=!!w.on;$("#wcfJob").value=w.job||"";$("#wcfRef").value=w.ref||"";$("#wcfPo").value=w.po||"";$("#wcfReq").value=w.req||"";$("#wcfDate").value=w.date||"";
+  wcfDraft=JSON.parse(JSON.stringify(w.lines||[]));
+  wcfRenderDraft();
   $("#wcfm").classList.add("on");
 }
+$("#wcfAdd").onclick=()=>{wcfDraft.push({sor:"",desc:"",type:"",qty:0,uom:"",price:0});wcfRenderDraft()};
+$("#wcfDate").onchange=wcfTotal;
 $("#wcfCancel").onclick=()=>$("#wcfm").classList.remove("on");
 $("#wcfSave").onclick=async()=>{
-  const w={on:$("#wcfOn").checked,job:$("#wcfJob").value.trim(),ref:$("#wcfRef").value.trim(),po:$("#wcfPo").value.trim(),req:$("#wcfReq").value.trim(),date:$("#wcfDate").value||""};
+  const w={on:$("#wcfOn").checked,job:$("#wcfJob").value.trim(),ref:$("#wcfRef").value.trim(),po:$("#wcfPo").value.trim(),req:$("#wcfReq").value.trim(),date:$("#wcfDate").value||"",lines:wcfDraft.filter(l=>l.sor||l.desc||l.qty||l.price)};
   busy("Saving…");
   try{J(await sb.from("snaplog_projects").update({wcf:w}).eq("id",proj.id));proj.wcf=w;logAct(w.on?"Turned on WCF":"Turned off WCF",proj.name)}
   catch(e){alert("Could not save the WCF settings: "+(e.message||e));return}
@@ -358,7 +377,7 @@ $("#wcfSave").onclick=async()=>{
 };
 function wcfReportHtml(){
   if(!proj.wcf||!proj.wcf.on)return"";
-  const L=wcfLines(proj,items),w=proj.wcf,date=wcfDate(proj);
+  const L=wcfLines(proj),w=proj.wcf,date=wcfDate(proj);
   if(!L.length)return'<div class="rp-item"><h4>Work Completion Form</h4><div class="dt">No WCF lines yet.</div></div>';
   const rows=L.map(l=>`<tr><td>${l.no}</td><td>${esc(l.sor)}</td><td>${esc(l.name)}</td><td>${esc(l.type)}</td><td class="r">${l.qty}</td><td>${esc(l.uom)}</td><td class="r">${money2(l.price)}</td><td class="r">${money2(l.amt)}</td><td class="r">${l.missing?"–":l.pct+"%"}</td><td class="r">${money2(l.tot)}</td></tr>`).join("");
   const head=[w.job&&"Job: "+w.job,w.ref&&"CBRE ref: "+w.ref,w.po&&"PO: "+w.po,w.req&&"Requested by: "+w.req,"Service date: "+date].filter(Boolean).map(esc).join(" · ");
@@ -409,7 +428,7 @@ function renderProject(){
     for(const i of list){
       h+=`<div class="row"><div><div class="num"><span>#${items.indexOf(i)+1}</span><button class="btn sm danger" data-del="${i.id}" style="padding:1px 7px">✕</button></div>
         <textarea class="nm" rows="2" placeholder="Item / location" data-f="name" data-i="${i.id}">${esc(i.name)}</textarea>
-        <textarea class="nt" rows="1" placeholder="Notes" data-f="notes" data-i="${i.id}">${esc(i.notes)}</textarea>${status(i)}${wcfBlock(i)}</div>
+        <textarea class="nt" rows="1" placeholder="Notes" data-f="notes" data-i="${i.id}">${esc(i.notes)}</textarea>${status(i)}</div>
         <div>${cell(i,"before")}</div><div>${cell(i,"after")}<div class="xtra">${cell(i,"extra")}</div></div></div>`;
     }
   }
@@ -439,16 +458,7 @@ function bindProject(){
   const rp=$("#rep");if(rp)rp.onclick=report;
   const wr=$("#wrd");if(wr)wr.onclick=exportDocx;
   const wb=$("#wcfb");if(wb)wb.onclick=openWcfSheet;
-  m.querySelectorAll(".wl").forEach(box=>{
-    box.querySelectorAll("[data-w]").forEach(el=>el.onchange=async()=>{
-      const i=items.find(x=>x.id===box.dataset.wi),w={};
-      box.querySelectorAll("[data-w]").forEach(f=>{const k=f.dataset.w;w[k]=(k==="qty"||k==="price")?(parseFloat(f.value)||0):f.value.trim()});
-      i.wcf=w;
-      try{J(await sb.from("snaplog_items").update({wcf:w}).eq("id",i.id));logAct("Edited WCF line",proj.name+": "+iname(i))}
-      catch(e){alert("Could not save the WCF line: "+(e.message||e))}
-      renderProject();
-    });
-  });
+
 }
 
 async function addPhotos(inp){
@@ -717,7 +727,7 @@ async function buildDocx(pr,its){
     body+=para("",{after:0});
   }
   if(pr.wcf&&pr.wcf.on){
-    const L=wcfLines(pr,its),w=pr.wcf,date=wcfDate(pr);
+    const L=wcfLines(pr),w=pr.wcf,date=wcfDate(pr);
     body+=para("Work Completion Form",{b:1,sz:28,before:360,keep:1});
     body+=para([w.job&&"Job: "+w.job,w.ref&&"CBRE ref: "+w.ref,w.po&&"PO: "+w.po,w.req&&"Requested by: "+w.req,"Service date: "+date].filter(Boolean).join("   "),{sz:20,color:"555555"});
     if(L.length){
