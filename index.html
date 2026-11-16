@@ -772,8 +772,9 @@ async function buildDocx(pr,its){
       `<w:tc><w:tcPr><w:tcW w:w="${cols.slice(0,9).reduce((a,b)=>a+b,0)}" w:type="dxa"/><w:gridSpan w:val="9"/></w:tcPr><w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="16"/></w:rPr><w:t xml:space="preserve">Total Amount (Before GST)</w:t></w:r></w:p></w:tc>`+
       cell(cols[9],para("$ "+money2(wcfGrand(L)),{b:1,sz:16,after:0}),null)+cell(cols[10],para("",{sz:16,after:0}),null)]);
     body+=para("This is to confirm the above works have been carried out satisfactorily in accordance with the contract specifications.",{sz:18,before:120});
-    body+=para("Completed by: ______________________   Date: ______________",{sz:20,before:360});
-    body+=para("Verified by: ______________________   Date: ______________",{sz:20,before:200});
+    body+=`<w:tbl><w:tblPr><w:tblW w:w="9538" w:type="dxa"/><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid><w:gridCol w:w="4769"/><w:gridCol w:w="4769"/></w:tblGrid><w:tr>`+
+      cell(4769,para("Completed by: ______________________",{sz:20,before:360})+para("Date: ______________",{sz:20}),null)+
+      cell(4769,para("Verified by: ______________________",{sz:20,before:360})+para("Date: ______________",{sz:20}),null)+`</w:tr></w:tbl>`;
     body+=para("Certified Job Completed & Costing correct by: ______________________   Date: ______________",{sz:20,before:300});
     body+=para("Remarks: "+(w.remarks||""),{sz:20,before:200});
     body+='<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
