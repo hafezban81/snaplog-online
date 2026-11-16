@@ -232,7 +232,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-16.5";
+const APP_VER="2026-11-16.6";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -435,7 +435,7 @@ function wcfReportHtml(){
       <div><b>Completed by:</b><div class="sigbox"></div>Name / Position: ______________________<br>Date: ______________________</div>
       <div><b>Verified by:</b><div class="sigbox"></div>Name / Position: ______________________<br>Date: ______________________</div>
     </div>
-    <div class="wcf-cert"><b>Certified Job Completed &amp; Costing correct by:</b><br><br>Name / Signature (client officer): ______________________ &nbsp; Date: ______________</div>
+    <div class="wcf-cert"><b>Certified Job Completed &amp; Costing correct by:</b><br><br>Name / Signature (JTC Officer): ______________________ &nbsp; Date: ______________</div>
     <div class="wcf-rembox"><div class="wcf-remh">Remarks</div><div class="wcf-remb">${esc(w.remarks||"")}</div></div>
   </div>`;
 }
