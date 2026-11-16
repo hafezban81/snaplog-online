@@ -232,7 +232,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-16.6";
+const APP_VER="2026-11-16.7";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -753,18 +753,18 @@ async function buildDocx(pr,its){
     const cap=(cfg.stamp&&!noCap)?para(fmt(p.t),{sz:16,color:"666666",after:40}):"";
     return cap+`<w:p><w:pPr><w:spacing w:after="60"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${n}" name="Photo ${n}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${n}" name="img${id}.jpg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
   }
-  const para=(t,o={})=>`<w:p><w:pPr><w:spacing w:before="${o.before||0}" w:after="${o.after||60}"/>${o.keep?"<w:keepNext/>":""}</w:pPr><w:r><w:rPr>${o.b?"<w:b/>":""}${o.color?`<w:color w:val="${o.color}"/>`:""}<w:sz w:val="${o.sz||22}"/></w:rPr><w:t xml:space="preserve">${xe(t)}</w:t></w:r></w:p>`;
+  const para=(t,o={})=>`<w:p><w:pPr>${o.keep?"<w:keepNext/>":""}<w:spacing w:before="${o.before||0}" w:after="${o.after||60}"/></w:pPr><w:r><w:rPr>${o.b?"<w:b/>":""}${o.color?`<w:color w:val="${o.color}"/>`:""}<w:sz w:val="${o.sz||22}"/></w:rPr><w:t xml:space="preserve">${xe(t)}</w:t></w:r></w:p>`;
   const bd='<w:tblBorders>'+["top","left","bottom","right","insideH","insideV"].map(s=>`<w:${s} w:val="single" w:sz="4" w:space="0" w:color="BFC5D0"/>`).join("")+'</w:tblBorders>';
   const cell=(w,inner,shade)=>`<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${shade?`<w:shd w:val="clear" w:color="auto" w:fill="${shade}"/>`:""}</w:tcPr>${inner}</w:tc>`;
   const tbl=(cols,rows)=>`<w:tbl><w:tblPr><w:tblW w:w="${cols.reduce((a,b)=>a+b,0)}" w:type="dxa"/>${bd}<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${cols.map(c=>`<w:gridCol w:w="${c}"/>`).join("")}</w:tblGrid>${rows.map(r=>`<w:tr><w:trPr><w:cantSplit/></w:trPr>${r}</w:tr>`).join("")}</w:tbl>`;
   let body="";
   if(pr.wcf&&pr.wcf.on){
     const L=wcfLines(pr),w=pr.wcf,date=wcfDate(pr);
-    if(companyLogo){const lg=await pic({d:companyLogo,path:"_company/logo.jpg"},1800000,700000,true);body+=lg.replace('<w:pPr><w:spacing w:after="60"/></w:pPr>','<w:pPr><w:jc w:val="right"/><w:spacing w:after="60"/></w:pPr>')}
-    body+='<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="120" w:after="200"/></w:pPr><w:r><w:rPr><w:b/><w:u w:val="single"/><w:sz w:val="30"/></w:rPr><w:t>Work Completion Form</w:t></w:r></w:p>';
+    if(companyLogo){const lg=await pic({d:companyLogo,path:"_company/logo.jpg"},1800000,700000,true);body+=lg.replace('<w:pPr><w:spacing w:after="60"/></w:pPr>','<w:pPr><w:spacing w:after="60"/><w:jc w:val="right"/></w:pPr>')}
+    body+='<w:p><w:pPr><w:spacing w:before="120" w:after="200"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/><w:u w:val="single"/><w:sz w:val="30"/></w:rPr><w:t>Work Completion Form</w:t></w:r></w:p>';
     const d2=d=>d?new Date(d+"T00:00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"2-digit"}).replace(/ /g,"-"):"";
     [["CBRE Ref. No.: ",w.ref],["Requested By: ",w.req],["JTC PO Number: ",w.po],["Service Date: ",d2(date)],["Description: ",w.job],["Location: ",w.loc]].forEach(([k,v])=>{body+=para(k+(v||""),{sz:20,after:30})});
-    const cols=[400,950,1500,650,500,800,900,1000,700,1000,1138];
+    const cols=[450,900,1650,800,600,850,950,900,700,1000,738];
     const rowN=(vals,hd)=>vals.map((v,k)=>cell(cols[k],para(String(v),{sz:16,after:0,b:hd,color:hd?"FFFFFF":undefined}),hd?"1C3D7A":null)).join("");
     const blankRow=rowN(Array(11).fill(""),false);
     const lines=L.map(l=>rowN([l.no,l.sor,l.name,l.qty,l.uom,money2(l.price),money2(l.amt),l.type,l.missing?"–":l.pct,money2(l.tot),l.remarks],false));
