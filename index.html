@@ -85,7 +85,7 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
 .wrow .r1{grid-template-columns:1fr 2fr}
 .wrow .r2{grid-template-columns:1.6fr .8fr .7fr 1fr auto}
 .wrow input,.wrow select{width:100%;font:inherit;font-size:13px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:#fff;min-width:0}
-.wcf-page{page-break-after:always;color:#000;font-size:12px}
+.wcf-page{color:#000;font-size:12px}
 .wcf-page,.wcf-page *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
 .wcf-title{text-align:center;font-weight:bold;text-decoration:underline;font-size:13px;margin:2px 0 8px}
 .wcf-hd{border-collapse:collapse;margin-bottom:6px}
@@ -232,7 +232,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-17.5";
+const APP_VER="2026-11-17.6";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -705,7 +705,7 @@ function report(){
   view="report";
   $("#fab").style.display="none";
   let h=`<div class="noprint" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center"><button class="btn" id="rb">‹ Back</button><button class="btn primary" onclick="window.print()">🖨 Print / Save as PDF</button><button class="btn primary" id="rw">📝 Word (.docx)</button>${cfg.stamp?`<label style="font-size:13px;color:var(--mute)">Report date <input type="datetime-local" id="rdate" value="${toLocalInput(reportT)}" style="font:inherit;padding:5px;border:1px solid var(--line);border-radius:8px"></label>`:""}</div>
-  <h2 style="margin:0 0 4px">${esc(proj.name)}</h2><div style="color:#666;margin-bottom:14px">${esc(cfg.bl)} / ${esc(cfg.al)} photo report${cfg.stamp?` · <span id="rhead">${fmt(reportT)}</span>`:""}</div>`;
+  <h2 style="margin:0 0 4px;${proj.wcf&&proj.wcf.on?'break-before:page;':''}">${esc(proj.name)}</h2><div style="color:#666;margin-bottom:14px">${esc(cfg.bl)} / ${esc(cfg.al)} photo report${cfg.stamp?` · <span id="rhead">${fmt(reportT)}</span>`:""}</div>`;
   items.forEach((i,n)=>{
     const col=(ph)=>ph.length?ph.map(p=>`<img src="${p.d}">${cfg.stamp?`<div class="dt">${fmt(p.t)}</div>`:""}`).join(""):'<div class="dt">— no photo —</div>';
     h+=`<div class="rp-item"><h4>#${n+1} ${esc(i.name||"(no name)")}</h4>${i.notes?`<div class="dt" style="margin-bottom:6px">${esc(i.notes)}</div>`:""}
