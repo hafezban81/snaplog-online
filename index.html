@@ -113,6 +113,7 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
   .rp-item h4,.rp-cols b{break-after:avoid}
   .rp-cols img{width:95%;margin:0 auto 2px;display:block}
   .rp-ex img{width:80%;margin:0 auto;display:block}
+  .rp-cols img.ls,.rp-ex img.ls{width:100%}
   .rp-item div[style*="margin-top:8px"]{margin-top:2px!important}
   .xtra{margin-top:4px;padding-top:4px}
   .rp-ex{margin-top:2px;gap:4px}
@@ -240,7 +241,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-17.13";
+const APP_VER="2026-11-17.14";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -721,7 +722,9 @@ function report(){
       ${i.extra.length?`<div style="margin-top:8px"><b style="font-size:12px;color:#555">${esc(cfg.xlabel.toUpperCase())}</b><div class="rp-ex">${i.extra.map(p=>`<img src="${p.d}">`).join("")}</div></div>`:""}</div>`;
   });
   { const k=h.indexOf("<h2"); h=h.slice(0,k)+wcfReportHtml()+h.slice(k); }
-  $("#main").innerHTML=h;$("#rb").onclick=renderProject;$("#rw").onclick=exportDocx;window.scrollTo(0,0);
+  $("#main").innerHTML=h;
+  document.querySelectorAll("#main .rp-cols img,#main .rp-ex img").forEach(im=>{const f=()=>{if(im.naturalWidth>im.naturalHeight)im.classList.add("ls")};im.complete?f():im.addEventListener("load",f)});
+  $("#rb").onclick=renderProject;$("#rw").onclick=exportDocx;window.scrollTo(0,0);
   const rd=$("#rdate");if(rd)rd.oninput=e=>{const t=new Date(e.target.value).getTime();if(!isNaN(t)){reportT=t;$("#rhead").textContent=fmt(t)}};
 }
 
