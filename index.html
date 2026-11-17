@@ -107,10 +107,14 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
 @page{size:A4;margin:0}
 @media print{
   header.top,.fab,.noprint{display:none!important}
-  body{background:#fff}main{padding:14mm;max-width:none}
-  .rp-item{break-inside:auto}
+  body{background:#fff}main{padding:9mm;max-width:none}
+  .rp-item{break-inside:auto;padding:6px;margin-bottom:6px}
+  .rp-item h4{margin-bottom:3px}
   .rp-item h4,.rp-cols b{break-after:avoid}
-  .rp-cols img,.rp-ex img{width:92%;margin:0 auto;display:block}
+  .rp-cols img,.rp-ex img{width:95%;margin:0 auto;display:block}
+  .rp-cols img{margin-bottom:2px}
+  .xtra{margin-top:6px;padding-top:6px}
+  .rp-ex{margin-top:2px}
 }
 </style>
 </head>
@@ -235,7 +239,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-17.11";
+const APP_VER="2026-11-17.12";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
