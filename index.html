@@ -232,7 +232,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-17.1";
+const APP_VER="2026-11-17.2";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -444,7 +444,7 @@ function status(i){
   if(i.before.length)return`<span class="st w">Waiting for ${esc(cfg.al.toLowerCase())}</span>`;
   return'<span class="st n">No photos</span>';}
 
-const MAXX=5;
+const MAXX=6;
 function cell(i,kind){
   const ph=i[kind],lab=kind==="before"?cfg.bl:kind==="after"?cfg.al:cfg.xlabel;
   const multi=kind==="extra",full=multi&&ph.length>=MAXX;
