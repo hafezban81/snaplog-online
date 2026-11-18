@@ -20,6 +20,15 @@ header.top h1{font-size:17px;margin:0;flex:1;overflow:hidden;text-overflow:ellip
 .btn.sm{padding:5px 9px;font-size:13px}
 main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px}
+.psearch{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;background:var(--card);margin:2px 0 8px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 6px}
+.chip{padding:5px 11px;border-radius:14px;background:#e3e8f2;font-size:12px;cursor:pointer}
+.chip.on{background:var(--accent,#1c3d7a);color:#fff}
+.mon{font-size:11px;font-weight:bold;text-transform:uppercase;color:#5a6676;margin:12px 2px 6px}
+.card.prow.proj{display:block;padding:10px 12px;margin-bottom:6px;cursor:pointer}
+.prow .pn{font-size:14px;font-weight:bold}
+.prow .pm{font-size:11px;color:#5a6676;margin-top:2px;display:flex;justify-content:space-between;gap:8px}
+.prow .bar{height:5px;margin-top:6px}
 .proj{display:flex;align-items:center;gap:10px;padding:14px;margin-bottom:10px;cursor:pointer}
 .proj .n{font-weight:600;font-size:16px}
 .proj .m{color:var(--mute);font-size:13px;margin-top:2px}
@@ -241,7 +250,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-17.14";
+const APP_VER="2026-11-18.1";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -312,19 +321,32 @@ async function home(){
   busy("Loading…");
   const ps=J(await sb.from("snaplog_projects").select("id,name,created_at,snaplog_items(id,snaplog_photos(kind))").is("deleted_at",null).order("created_at",{ascending:false}));
   busy(false);
-  let h="";
-  if(!ps.length)h='<div class="empty">No projects yet.<br>Tap <b>＋ New project</b> to start.</div>';
-  for(const p of ps){
-    const li=p.snaplog_items,has=(i,k)=>i.snaplog_photos.some(x=>x.kind===k);
-    const b=li.filter(i=>has(i,"before")).length,a=li.filter(i=>has(i,"after")).length;
-    const pct=li.length?Math.round(a/li.length*100):0;
-    h+=`<div class="card proj" data-id="${p.id}"><div style="flex:1"><div class="n">${esc(p.name)}</div>
-      <div class="m">${li.length} items · ${b} ${esc(cfg.bl.toLowerCase())} · ${a} ${esc(cfg.al.toLowerCase())}</div>
-      <div class="bar"><i style="width:${pct}%"></i></div></div><span class="go">›</span></div>`;
-  }
-  h+=`<div class="foot">Logged in as ${esc(who())}</div>`;
-  $("#main").innerHTML=h;
-  document.querySelectorAll(".proj").forEach(e=>e.onclick=()=>openProject(e.dataset.id));
+  const has=(i,k)=>i.snaplog_photos.some(x=>x.kind===k);
+  const rows=ps.map(p=>{const li=p.snaplog_items;const b=li.filter(i=>has(i,"before")).length,a=li.filter(i=>has(i,"after")).length;
+    return {p,n:li.length,b,a,pct:li.length?Math.round(a/li.length*100):0,done:li.length>0&&a===li.length};});
+  const f={q:"",s:"all"};
+  const draw=()=>{
+    const q=f.q.trim().toLowerCase();
+    const cnt={all:rows.length,prog:rows.filter(r=>!r.done).length,done:rows.filter(r=>r.done).length};
+    const list=rows.filter(r=>(f.s==="all"||(f.s==="done")===r.done)&&(!q||r.p.name.toLowerCase().includes(q)));
+    let h=`<input id="psearch" class="psearch" placeholder="🔍 Search projects" value="${esc(f.q)}">`;
+    h+=`<div class="chips">`+[["all","All"],["prog","In progress"],["done","Done"]].map(([k,l])=>`<span class="chip${f.s===k?" on":""}" data-s="${k}">${l} ${cnt[k]}</span>`).join("")+`</div>`;
+    if(!ps.length)h+='<div class="empty">No projects yet.<br>Tap <b>＋ New project</b> to start.</div>';
+    else if(!list.length)h+='<div class="empty">No matching projects.</div>';
+    let lastM="";
+    for(const r of list){
+      const m=new Date(r.p.created_at).toLocaleDateString("en-SG",{month:"long",year:"numeric"});
+      if(m!==lastM){h+=`<div class="mon">${esc(m)}</div>`;lastM=m;}
+      h+=`<div class="card prow proj" data-id="${r.p.id}"><div class="pn">${esc(r.p.name)}</div><div class="pm"><span>${r.n} items · ${r.b} ${esc(cfg.bl.toLowerCase())} · ${r.a} ${esc(cfg.al.toLowerCase())}</span><span>${r.pct}%</span></div><div class="bar"><i style="width:${r.pct}%"></i></div></div>`;
+    }
+    h+=`<div class="foot">Logged in as ${esc(who())}</div>`;
+    $("#main").innerHTML=h;
+    document.querySelectorAll(".proj").forEach(e=>e.onclick=()=>openProject(e.dataset.id));
+    document.querySelectorAll(".chip").forEach(e=>e.onclick=()=>{f.s=e.dataset.s;draw();});
+    const inp=$("#psearch");
+    inp.oninput=()=>{f.q=inp.value;const pos=inp.selectionStart;draw();const n=$("#psearch");n.focus();n.setSelectionRange(pos,pos);};
+  };
+  draw();
 }
 
 /* ---------- PROJECT ---------- */
