@@ -26,6 +26,7 @@ Before/after photo reports for technicians. This page is the quick reference for
 - Each technician has their own login. There is one admin login.
 - The admin (you) creates technician accounts. For now this is done in Supabase.
 - Three locations: Sin Ming, Ang Mo Kio, Toa Payoh.
+- Expected size: about 20 users across the three locations.
 
 ## Future plans
 
@@ -33,6 +34,13 @@ Before/after photo reports for technicians. This page is the quick reference for
 - **Team page in the app:** the admin creates and manages accounts from inside the app, instead of in Supabase. Mockup only so far.
 - **Activity log:** an admin view of who did what, and when.
 - **Password change:** technicians can change their own password.
+
+## Photo and print settings
+
+- Upload size: photos are saved at 1024 pixels by default, to keep storage small. Change it in the app's options.
+- Original camera photos are not kept at full size.
+- Print: photos are 95% of their column width. Landscape photos are shown at full column width. Page margins are 9mm.
+- Items can split across pages, so the report has no near-empty pages.
 
 ## Costs
 
