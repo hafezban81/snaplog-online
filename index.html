@@ -165,12 +165,6 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
       <option value="1024">Normal – 1024 px (~100 KB)</option>
       <option value="1400">Good – 1400 px (~180 KB)</option>
     </select>
-    <label>Name of first photo (default: Before)</label>
-    <input type="text" id="optB" maxlength="20">
-    <label>Name of second photo (default: After)</label>
-    <input type="text" id="optA" maxlength="20">
-    <label>Name of extra photos (default: Additional photos)</label>
-    <input type="text" id="optX" maxlength="30">
     <label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:14px;margin-top:14px"><input type="checkbox" id="optStamp"> Show date &amp; time (photos, PDF report, Word)</label>
     <div class="acts" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
       <button class="btn" id="fullbk" style="display:none">💾 Full backup (zip)</button>
@@ -245,12 +239,12 @@ const uid=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Mat
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmt=t=>new Date(t).toLocaleString("en-SG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
 const fmtD=t=>new Date(t).toLocaleDateString("en-SG",{day:"2-digit",month:"short"});
-const cfg={size:+(localStorage.pl_size||1024),stamp:localStorage.pl_stamp!=="0",xlabel:localStorage.pl_xlabel||"Additional photos",bl:localStorage.pl_bl||"Before",al:localStorage.pl_al||"After"};
+const cfg={size:+(localStorage.pl_size||1024),stamp:localStorage.pl_stamp!=="0",xlabel:"Additional photos",bl:"Before",al:"After"};
 let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-18.1";
+const APP_VER="2026-11-21.1";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -260,6 +254,9 @@ const J=r=>{if(r.error)throw r.error;return r.data};
 function logAct(action,detail){try{Promise.resolve(sb.from("snaplog_log").insert({action,detail:detail||""})).catch(()=>{})}catch{}}
 const iname=i=>(i&&i.name)||"(unnamed item)";
 const kname=k=>k==="before"?cfg.bl:k==="after"?cfg.al:cfg.xlabel;
+const DEF_LABELS={bl:"Before",al:"After",xl:"Additional photos"};
+const labelsOf=p=>{const l=(p&&p.labels)||{};return{bl:String(l.bl||"").trim()||DEF_LABELS.bl,al:String(l.al||"").trim()||DEF_LABELS.al,xl:String(l.xl||"").trim()||DEF_LABELS.xl}};
+const applyLabels=p=>{const l=labelsOf(p);cfg.bl=l.bl;cfg.al=l.al;cfg.xlabel=l.xl};
 const who=()=>(me&&me.email||"").replace(/@snaplog\.(app|online)$/i,"");
 function busy(m){const b=$("#busy");b.style.display=m?"block":"none";if(m)b.textContent=m}
 window.addEventListener("unhandledrejection",e=>{busy(false);alert("Something went wrong: "+((e.reason&&e.reason.message)||e.reason))});
@@ -319,7 +316,7 @@ async function home(){
   $("#back").style.display="none";$("#title").textContent="SnapLog Online";
   $("#fab").style.display="";$("#fab").textContent="＋ New project";
   busy("Loading…");
-  const ps=J(await sb.from("snaplog_projects").select("id,name,created_at,snaplog_items(id,snaplog_photos(kind))").is("deleted_at",null).order("created_at",{ascending:false}));
+  const ps=J(await sb.from("snaplog_projects").select("id,name,created_at,labels,snaplog_items(id,snaplog_photos(kind))").is("deleted_at",null).order("created_at",{ascending:false}));
   busy(false);
   const has=(i,k)=>i.snaplog_photos.some(x=>x.kind===k);
   const rows=ps.map(p=>{const li=p.snaplog_items;const b=li.filter(i=>has(i,"before")).length,a=li.filter(i=>has(i,"after")).length;
@@ -337,7 +334,7 @@ async function home(){
     for(const r of list){
       const m=new Date(r.p.created_at).toLocaleDateString("en-SG",{month:"long",year:"numeric"});
       if(m!==lastM){h+=`<div class="mon">${esc(m)}</div>`;lastM=m;}
-      h+=`<div class="card prow proj" data-id="${r.p.id}"><div class="pn">${esc(r.p.name)}</div><div class="pm"><span>${r.n} items · ${r.b} ${esc(cfg.bl.toLowerCase())} · ${r.a} ${esc(cfg.al.toLowerCase())}</span><span>${r.pct}%</span></div><div class="bar"><i style="width:${r.pct}%"></i></div></div>`;
+      h+=`<div class="card prow proj" data-id="${r.p.id}"><div class="pn">${esc(r.p.name)}</div><div class="pm"><span>${r.n} items · ${r.b} ${esc(labelsOf(r.p).bl.toLowerCase())} · ${r.a} ${esc(labelsOf(r.p).al.toLowerCase())}</span><span>${r.pct}%</span></div><div class="bar"><i style="width:${r.pct}%"></i></div></div>`;
     }
     h+=`<div class="foot">Logged in as ${esc(who())}</div>`;
     $("#main").innerHTML=h;
@@ -352,8 +349,8 @@ async function home(){
 /* ---------- PROJECT ---------- */
 async function openProject(id){
   busy("Loading…");
-  const r=await sb.from("snaplog_projects").select("id,name,wcf").eq("id",id).maybeSingle();
-  proj=r.data;if(!proj){busy(false);return home()}
+  const r=await sb.from("snaplog_projects").select("id,name,wcf,labels").eq("id",id).maybeSingle();
+  proj=r.data;if(!proj){busy(false);return home()}applyLabels(proj);
   view="proj";filter="all";await Promise.all([loadItems(),loadRates()]);busy(false);renderProject();
 }
 async function loadItems(){items=await fetchItems(proj.id)}
@@ -497,7 +494,7 @@ function renderProject(){
   const list=items.filter(i=>filter==="all"||(filter==="wait"&&i.before.length&&!i.after.length)||(filter==="done"&&i.before.length&&i.after.length));
   let h=`<div class="noprint" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
     <span style="color:var(--mute);font-size:13px;flex:1">${items.length} items · ${nb} ${esc(cfg.bl.toLowerCase())} · ${na} ${esc(cfg.al.toLowerCase())}</span>
-    <button class="btn sm" id="wcfb">📑 WCF${proj.wcf&&proj.wcf.on?" ✓":""}</button><button class="btn sm" id="ren">Rename</button><button class="btn sm" id="rep">📄 Report / PDF</button><button class="btn sm" id="wrd">📝 Word</button><button class="btn sm" id="bkpp">💾 Backup</button>${isAdmin?`<button class="btn sm" id="jsonp">⬇ JSON</button>`:""}<button class="btn sm danger" id="delp">Delete</button></div>
+    <button class="btn sm" id="wcfb">📑 WCF${proj.wcf&&proj.wcf.on?" ✓":""}</button>${isAdmin?'<button class="btn sm" id="lbl">🏷 Labels</button>':""}<button class="btn sm" id="ren">Rename</button><button class="btn sm" id="rep">📄 Report / PDF</button><button class="btn sm" id="wrd">📝 Word</button><button class="btn sm" id="bkpp">💾 Backup</button>${isAdmin?`<button class="btn sm" id="jsonp">⬇ JSON</button>`:""}<button class="btn sm danger" id="delp">Delete</button></div>
   <div class="chips noprint">
     <button class="chip ${filter==="all"?"on":""}" data-f="all">All (${items.length})</button>
     <button class="chip ${filter==="wait"?"on":""}" data-f="wait">Need ${esc(cfg.al.toLowerCase())} photo (${items.filter(i=>i.before.length&&!i.after.length).length})</button>
@@ -530,6 +527,16 @@ function bindProject(){
     busy("Deleting…");const it=items.find(x=>x.id===b.dataset.del);
     await removeFiles(pathsOf([it]));J(await sb.from("snaplog_items").delete().eq("id",it.id));logAct("Deleted item",proj.name+": "+iname(it));
     await loadItems();busy(false);renderProject();});
+  const lb=$("#lbl");if(lb)lb.onclick=async()=>{
+    if(!isAdmin)return;const cur=labelsOf(proj);
+    const bl=await ask("Name for first photo (e.g. Before)",cur.bl);if(bl===null)return;
+    const al=await ask("Name for second photo (e.g. After)",cur.al);if(al===null)return;
+    const xl=await ask("Name for extra photos (e.g. Additional photos)",cur.xl);if(xl===null)return;
+    const labels={bl:bl.slice(0,20),al:al.slice(0,20),xl:xl.slice(0,30)};
+    busy("Saving…");
+    try{J(await sb.from("snaplog_projects").update({labels}).eq("id",proj.id));proj.labels=labels;applyLabels(proj);logAct("Changed photo labels",proj.name+": "+labels.bl+" / "+labels.al+" / "+labels.xl)}finally{busy(false)}
+    renderProject();
+  };
   const r=$("#ren");if(r)r.onclick=async()=>{const n=await ask("Project name",proj.name);if(n){J(await sb.from("snaplog_projects").update({name:n}).eq("id",proj.id));logAct("Renamed project",proj.name+" → "+n);proj.name=n;renderProject()}};
   const dp=$("#delp");if(dp)dp.onclick=async()=>{
     if(!confirm('Move project "'+proj.name+'" to the Trash? Only the admin can restore it.'))return;
@@ -851,10 +858,10 @@ async function fullBackup(only){
   try{
     busy("Preparing…");
     await loadRates();
-    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name,wcf").is("deleted_at",null).order("created_at"));
+    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name,wcf,labels").is("deleted_at",null).order("created_at"));
     let pi=0;
     for(const pr of prs){
-      pi++;
+      pi++;applyLabels(pr);
       let folder=safe(pr.name),c=2;
       while(names.has(folder.toLowerCase()))folder=safe(pr.name)+" ("+(c++)+")";
       names.add(folder.toLowerCase());
@@ -891,12 +898,12 @@ $("#fab").onclick=async()=>{
     const t=document.querySelector(`textarea[data-i="${r.id}"]`);if(t){t.scrollIntoView({block:"center"});t.focus()}
   }};
 $("#menuBtn").onclick=()=>{
-  $("#optSize").value=String(cfg.size);$("#optStamp").checked=cfg.stamp;$("#optX").value=cfg.xlabel;$("#optB").value=cfg.bl;$("#optA").value=cfg.al;
+  $("#optSize").value=String(cfg.size);$("#optStamp").checked=cfg.stamp;
   $("#who").textContent="Logged in as "+who();$("#fullbk").style.display="";$("#jsonin").parentElement.style.display=isAdmin?"":"none";$("#jsonbk").style.display=isAdmin?"":"none";$("#trashbtn").style.display=isAdmin?"":"none";$("#logbtn").style.display=isAdmin?"":"none";
   $("#menu").classList.add("on");
 };
 $("#menuClose").onclick=()=>{
-  cfg.size=+$("#optSize").value;cfg.stamp=$("#optStamp").checked;cfg.xlabel=$("#optX").value.trim()||"Additional photos";localStorage.pl_xlabel=cfg.xlabel;cfg.bl=$("#optB").value.trim()||"Before";cfg.al=$("#optA").value.trim()||"After";localStorage.pl_bl=cfg.bl;localStorage.pl_al=cfg.al;
+  cfg.size=+$("#optSize").value;cfg.stamp=$("#optStamp").checked;
   localStorage.pl_size=cfg.size;localStorage.pl_stamp=cfg.stamp?"1":"0";
   $("#menu").classList.remove("on");
   if(view==="proj")renderProject();else if(view==="report")report();else if(view==="home")home();};
@@ -942,8 +949,8 @@ async function exportJson(only){
   if(!confirm(only?"Download this project as a .json data file?":"Download ALL projects as one .json data file? Large backups can take a few minutes."))return;
   try{
     busy("Preparing…");
-    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name,created_at,wcf").is("deleted_at",null).order("created_at"));
-    const projects=prs.map(p=>({id:p.id,name:p.name,created:p.created_at?new Date(p.created_at).getTime():Date.now(),...(p.wcf?{wcf:p.wcf}:{})}));
+    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name,created_at,wcf,labels").is("deleted_at",null).order("created_at"));
+    const projects=prs.map(p=>({id:p.id,name:p.name,created:p.created_at?new Date(p.created_at).getTime():Date.now(),...(p.wcf?{wcf:p.wcf}:{}),...(p.labels?{labels:p.labels}:{})}));
     const parts=['{"v":1,"projects":'+JSON.stringify(projects)+',"items":['];
     let first=true,pi=0;
     for(const pr of prs){
@@ -973,7 +980,7 @@ async function importJson(file){
   try{
     for(const p of d.projects){
       busy("Importing "+(p.name||"project")+"…");
-      const np=J(await sb.from("snaplog_projects").insert({name:p.name||"Imported project",created_at:new Date(p.created||Date.now()).toISOString(),...(p.wcf?{wcf:p.wcf}:{})}).select("id").single());
+      const np=J(await sb.from("snaplog_projects").insert({name:p.name||"Imported project",created_at:new Date(p.created||Date.now()).toISOString(),...(p.wcf?{wcf:p.wcf}:{}),...(p.labels?{labels:p.labels}:{})}).select("id").single());
       const its=d.items.filter(i=>i.projectId===p.id).sort((a,b)=>(a.order||0)-(b.order||0));
       for(const [idx,i] of its.entries()){
         const ni=J(await sb.from("snaplog_items").insert({project_id:np.id,position:Date.now()+idx,name:i.name||"",notes:i.notes||"",...(i.wcf?{wcf:i.wcf}:{})}).select("id").single());
