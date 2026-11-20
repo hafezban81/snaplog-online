@@ -28,6 +28,23 @@ Before/after photo reports for technicians. This page is the quick reference for
 - Three locations: Sin Ming, Ang Mo Kio, Toa Payoh.
 - Expected size: about 20 users across the three locations.
 
+### How to add or remove a technician (Supabase)
+
+Technicians log in with just their name. The app adds `@snaplog.app` behind the scenes, so "ali" logs in as `ali@snaplog.app`.
+
+To add:
+1. Open the Supabase project "tech" and go to **Authentication**, then **Users**.
+2. Click **Add user**, then **Create new user**.
+3. Enter the email as `name@snaplog.app`, for example `ali@snaplog.app`.
+4. Enter a password, tick **Auto Confirm User**, and click **Create user**.
+5. Give the technician their name and password.
+
+To remove:
+1. Go to **Authentication**, then **Users**.
+2. Click the person's row, click **Delete user**, and confirm.
+
+Removing a login does not delete the projects and photos they created. Menu names in Supabase may change over time.
+
 ## Future plans
 
 - **Location access (decided):** each person sees only their own location by default. The admin can grant a person access to another location. Not built yet.
