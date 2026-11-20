@@ -35,6 +35,12 @@ Before/after photo reports for technicians. This page is the quick reference for
 - **Activity log:** an admin view of who did what, and when.
 - **Password change:** technicians can change their own password.
 
+## Security
+
+- The code is public. Anyone can view the app's source, including the Supabase address and the publishable key. This is expected: the publishable key is designed to be public.
+- Data is protected by logins and by Supabase access rules, not by hiding the code.
+- The Supabase "secret" (service role) key must never be put in the code or in this README.
+
 ## Photo and print settings
 
 - Upload size: photos are saved at 1024 pixels by default, to keep storage small. Change it in the app's options.
