@@ -24,8 +24,15 @@ Before/after photo reports for technicians. This page is the quick reference for
 ## Accounts
 
 - Each technician has their own login. There is one admin login.
-- Accounts are created by the admin in Supabase for now.
-- Planned: three locations (Sin Ming, Ang Mo Kio, Toa Payoh). People see only their own location by default; the admin can grant access to another location.
+- The admin (you) creates technician accounts. For now this is done in Supabase.
+- Three locations: Sin Ming, Ang Mo Kio, Toa Payoh.
+
+## Future plans
+
+- **Location access (decided):** each person sees only their own location by default. The admin can grant a person access to another location. Not built yet.
+- **Team page in the app:** the admin creates and manages accounts from inside the app, instead of in Supabase. Mockup only so far.
+- **Activity log:** an admin view of who did what, and when.
+- **Password change:** technicians can change their own password.
 
 ## Costs
 
@@ -34,7 +41,5 @@ Before/after photo reports for technicians. This page is the quick reference for
 
 ## Open items
 
-- Team page and location access (mockup only so far)
-- Activity log in the app
-- Password-change option for technicians
+- Open question: whether managers can create accounts, or only the admin
 - Real WCF adjustment rates added to `snaplog_wcf_rates`
