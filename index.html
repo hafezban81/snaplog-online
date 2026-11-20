@@ -244,7 +244,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-21.1";
+const APP_VER="2026-11-21.2";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -494,7 +494,7 @@ function renderProject(){
   const list=items.filter(i=>filter==="all"||(filter==="wait"&&i.before.length&&!i.after.length)||(filter==="done"&&i.before.length&&i.after.length));
   let h=`<div class="noprint" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
     <span style="color:var(--mute);font-size:13px;flex:1">${items.length} items · ${nb} ${esc(cfg.bl.toLowerCase())} · ${na} ${esc(cfg.al.toLowerCase())}</span>
-    <button class="btn sm" id="wcfb">📑 WCF${proj.wcf&&proj.wcf.on?" ✓":""}</button>${isAdmin?'<button class="btn sm" id="lbl">🏷 Labels</button>':""}<button class="btn sm" id="ren">Rename</button><button class="btn sm" id="rep">📄 Report / PDF</button><button class="btn sm" id="wrd">📝 Word</button><button class="btn sm" id="bkpp">💾 Backup</button>${isAdmin?`<button class="btn sm" id="jsonp">⬇ JSON</button>`:""}<button class="btn sm danger" id="delp">Delete</button></div>
+    <button class="btn sm" id="wcfb">📑 WCF${proj.wcf&&proj.wcf.on?" ✓":""}</button><button class="btn sm" id="lbl">🏷 Labels</button><button class="btn sm" id="ren">Rename</button><button class="btn sm" id="rep">📄 Report / PDF</button><button class="btn sm" id="wrd">📝 Word</button><button class="btn sm" id="bkpp">💾 Backup</button>${isAdmin?`<button class="btn sm" id="jsonp">⬇ JSON</button>`:""}<button class="btn sm danger" id="delp">Delete</button></div>
   <div class="chips noprint">
     <button class="chip ${filter==="all"?"on":""}" data-f="all">All (${items.length})</button>
     <button class="chip ${filter==="wait"?"on":""}" data-f="wait">Need ${esc(cfg.al.toLowerCase())} photo (${items.filter(i=>i.before.length&&!i.after.length).length})</button>
@@ -528,7 +528,13 @@ function bindProject(){
     await removeFiles(pathsOf([it]));J(await sb.from("snaplog_items").delete().eq("id",it.id));logAct("Deleted item",proj.name+": "+iname(it));
     await loadItems();busy(false);renderProject();});
   const lb=$("#lbl");if(lb)lb.onclick=async()=>{
-    if(!isAdmin)return;const cur=labelsOf(proj);
+    const cur=labelsOf(proj);
+    if(confirm("Set the names back to default (Before / After / Additional photos)?\n\nOK = reset to default\nCancel = type new names")){
+      const labels={bl:DEF_LABELS.bl,al:DEF_LABELS.al,xl:DEF_LABELS.xl};
+      busy("Saving…");
+      try{J(await sb.from("snaplog_projects").update({labels}).eq("id",proj.id));proj.labels=labels;applyLabels(proj);logAct("Reset photo labels to default",proj.name)}finally{busy(false)}
+      renderProject();return;
+    }
     const bl=await ask("Name for first photo (e.g. Before)",cur.bl);if(bl===null)return;
     const al=await ask("Name for second photo (e.g. After)",cur.al);if(al===null)return;
     const xl=await ask("Name for extra photos (e.g. Additional photos)",cur.xl);if(xl===null)return;
