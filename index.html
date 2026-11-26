@@ -127,6 +127,13 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
   .xtra{margin-top:4px;padding-top:4px}
   .rp-ex{margin-top:2px;gap:4px}
 }
+.fold{border-radius:12px;padding:2px;margin-bottom:8px;transition:background .15s}
+.fold.over{background:rgba(37,99,235,.12);outline:2px dashed #2563eb}
+.fhead{display:flex;justify-content:space-between;font-weight:600;margin:12px 2px 6px;color:var(--ink)}
+.fempty{color:var(--mute);font-size:13px;text-align:center;padding:12px;border:1px dashed #bbb;border-radius:10px;margin:4px 0 8px}
+.card.prow.proj{user-select:none;-webkit-user-select:none;touch-action:pan-y}
+.card.dragging{opacity:.35}
+.card.ghost{position:fixed;left:0;top:0;pointer-events:none;z-index:999;opacity:.95;box-shadow:0 8px 24px rgba(0,0,0,.25);margin:0}
 </style>
 </head>
 <body>
@@ -244,7 +251,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-21.2";
+const APP_VER="2026-11-26.1";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -255,6 +262,8 @@ function logAct(action,detail){try{Promise.resolve(sb.from("snaplog_log").insert
 const iname=i=>(i&&i.name)||"(unnamed item)";
 const kname=k=>k==="before"?cfg.bl:k==="after"?cfg.al:cfg.xlabel;
 const DEF_LABELS={bl:"Before",al:"After",xl:"Additional photos"};
+const FOLDERS=["AutoCity","AutoCare","Ang Mo Kio Park 1","Sin Ming Ind Est","Others"];
+const folderOf=p=>FOLDERS.includes(p&&p.folder)?p.folder:"Others";
 const labelsOf=p=>{const l=(p&&p.labels)||{};return{bl:String(l.bl||"").trim()||DEF_LABELS.bl,al:String(l.al||"").trim()||DEF_LABELS.al,xl:String(l.xl||"").trim()||DEF_LABELS.xl}};
 const applyLabels=p=>{const l=labelsOf(p);cfg.bl=l.bl;cfg.al=l.al;cfg.xlabel=l.xl};
 const who=()=>(me&&me.email||"").replace(/@snaplog\.(app|online)$/i,"");
@@ -316,12 +325,57 @@ async function home(){
   $("#back").style.display="none";$("#title").textContent="SnapLog Online";
   $("#fab").style.display="";$("#fab").textContent="＋ New project";
   busy("Loading…");
-  const ps=J(await sb.from("snaplog_projects").select("id,name,created_at,labels,snaplog_items(id,snaplog_photos(kind))").is("deleted_at",null).order("created_at",{ascending:false}));
+  const ps=J(await sb.from("snaplog_projects").select("id,name,created_at,folder,labels,snaplog_items(id,snaplog_photos(kind))").is("deleted_at",null).order("created_at",{ascending:false}));
   busy(false);
   const has=(i,k)=>i.snaplog_photos.some(x=>x.kind===k);
   const rows=ps.map(p=>{const li=p.snaplog_items;const b=li.filter(i=>has(i,"before")).length,a=li.filter(i=>has(i,"after")).length;
     return {p,n:li.length,b,a,pct:li.length?Math.round(a/li.length*100):0,done:li.length>0&&a===li.length};});
   const f={q:"",s:"all"};
+  let drag=null,justDragged=false;
+  function bindDrag(){
+    document.querySelectorAll(".proj").forEach(el=>el.addEventListener("pointerdown",e=>{
+      if(e.pointerType==="mouse"&&e.button!==0)return;
+      const touch=e.pointerType!=="mouse",sx=e.clientX,sy=e.clientY,pid=e.pointerId;
+      let timer=null;
+      const noScroll=ev=>{if(drag)ev.preventDefault()};
+      const stop=()=>{clearTimeout(timer);removeEventListener("pointermove",onMove);removeEventListener("pointerup",onUp);removeEventListener("pointercancel",cancel);removeEventListener("touchmove",noScroll)};
+      const cancel=()=>{stop();if(drag){drag.ghost.remove();drag.el.classList.remove("dragging");drag.over?.classList.remove("over");drag=null}};
+      const begin=()=>{
+        drag={el,id:el.dataset.id,ghost:el.cloneNode(true),over:null};
+        drag.ghost.classList.add("ghost");drag.ghost.style.width=el.offsetWidth+"px";
+        document.body.appendChild(drag.ghost);el.classList.add("dragging");
+        addEventListener("touchmove",noScroll,{passive:false});
+      };
+      const onMove=ev=>{
+        if(ev.pointerId!==pid)return;
+        if(!drag){
+          if(Math.hypot(ev.clientX-sx,ev.clientY-sy)>(touch?10:6)){ if(touch)stop(); else {clearTimeout(timer);begin()} }
+          return;
+        }
+        ev.preventDefault();
+        drag.ghost.style.left=(ev.clientX-drag.ghost.offsetWidth/2)+"px";
+        drag.ghost.style.top=(ev.clientY-24)+"px";
+        const t=document.elementFromPoint(ev.clientX,ev.clientY)?.closest?.(".fold")||null;
+        if(drag.over!==t){drag.over?.classList.remove("over");t?.classList.add("over");drag.over=t}
+      };
+      const onUp=async ev=>{
+        if(ev.pointerId!==pid)return;
+        stop();
+        if(!drag)return;
+        const d=drag;drag=null;d.ghost.remove();d.el.classList.remove("dragging");d.over?.classList.remove("over");
+        justDragged=true;setTimeout(()=>justDragged=false,300);
+        const target=d.over?.dataset.folder;
+        const p=ps.find(x=>x.id===d.id);
+        if(!target||!p||folderOf(p)===target)return;
+        busy("Moving…");
+        try{J(await sb.from("snaplog_projects").update({folder:target}).eq("id",p.id));p.folder=target;logAct("Moved project to folder",p.name+" → "+target)}
+        finally{busy(false)}
+        draw();
+      };
+      addEventListener("pointermove",onMove,{passive:false});addEventListener("pointerup",onUp);addEventListener("pointercancel",cancel);
+      if(touch)timer=setTimeout(()=>{if(!drag)begin()},350);
+    }));
+  }
   const draw=()=>{
     const q=f.q.trim().toLowerCase();
     const cnt={all:rows.length,prog:rows.filter(r=>!r.done).length,done:rows.filter(r=>r.done).length};
@@ -330,15 +384,19 @@ async function home(){
     h+=`<div class="chips">`+[["all","All"],["prog","In progress"],["done","Done"]].map(([k,l])=>`<span class="chip${f.s===k?" on":""}" data-s="${k}">${l} ${cnt[k]}</span>`).join("")+`</div>`;
     if(!ps.length)h+='<div class="empty">No projects yet.<br>Tap <b>＋ New project</b> to start.</div>';
     else if(!list.length)h+='<div class="empty">No matching projects.</div>';
-    let lastM="";
-    for(const r of list){
-      const m=new Date(r.p.created_at).toLocaleDateString("en-SG",{month:"long",year:"numeric"});
-      if(m!==lastM){h+=`<div class="mon">${esc(m)}</div>`;lastM=m;}
-      h+=`<div class="card prow proj" data-id="${r.p.id}"><div class="pn">${esc(r.p.name)}</div><div class="pm"><span>${r.n} items · ${r.b} ${esc(labelsOf(r.p).bl.toLowerCase())} · ${r.a} ${esc(labelsOf(r.p).al.toLowerCase())}</span><span>${r.pct}%</span></div><div class="bar"><i style="width:${r.pct}%"></i></div></div>`;
+    for(const fd of FOLDERS){
+      const inF=list.filter(r=>folderOf(r.p)===fd);
+      h+=`<div class="fold" data-folder="${esc(fd)}"><div class="fhead"><span>📁 ${esc(fd)}</span><span>${inF.length}</span></div>`;
+      for(const r of inF){
+        h+=`<div class="card prow proj" data-id="${r.p.id}"><div class="pn">${esc(r.p.name)}</div><div class="pm"><span>${r.n} items · ${r.b} ${esc(labelsOf(r.p).bl.toLowerCase())} · ${r.a} ${esc(labelsOf(r.p).al.toLowerCase())}</span><span>${r.pct}%</span></div><div class="bar"><i style="width:${r.pct}%"></i></div></div>`;
+      }
+      if(!inF.length)h+=`<div class="fempty">Drag a project here</div>`;
+      h+=`</div>`;
     }
     h+=`<div class="foot">Logged in as ${esc(who())}</div>`;
     $("#main").innerHTML=h;
-    document.querySelectorAll(".proj").forEach(e=>e.onclick=()=>openProject(e.dataset.id));
+    document.querySelectorAll(".proj").forEach(e=>e.onclick=()=>{if(!justDragged)openProject(e.dataset.id)});
+    bindDrag();
     document.querySelectorAll(".chip").forEach(e=>e.onclick=()=>{f.s=e.dataset.s;draw();});
     const inp=$("#psearch");
     inp.oninput=()=>{f.q=inp.value;const pos=inp.selectionStart;draw();const n=$("#psearch");n.focus();n.setSelectionRange(pos,pos);};
@@ -349,7 +407,7 @@ async function home(){
 /* ---------- PROJECT ---------- */
 async function openProject(id){
   busy("Loading…");
-  const r=await sb.from("snaplog_projects").select("id,name,wcf,labels").eq("id",id).maybeSingle();
+  const r=await sb.from("snaplog_projects").select("id,name,wcf,labels,folder").eq("id",id).maybeSingle();
   proj=r.data;if(!proj){busy(false);return home()}applyLabels(proj);
   view="proj";filter="all";await Promise.all([loadItems(),loadRates()]);busy(false);renderProject();
 }
@@ -494,7 +552,7 @@ function renderProject(){
   const list=items.filter(i=>filter==="all"||(filter==="wait"&&i.before.length&&!i.after.length)||(filter==="done"&&i.before.length&&i.after.length));
   let h=`<div class="noprint" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
     <span style="color:var(--mute);font-size:13px;flex:1">${items.length} items · ${nb} ${esc(cfg.bl.toLowerCase())} · ${na} ${esc(cfg.al.toLowerCase())}</span>
-    <button class="btn sm" id="wcfb">📑 WCF${proj.wcf&&proj.wcf.on?" ✓":""}</button><button class="btn sm" id="lbl">🏷 Labels</button><button class="btn sm" id="ren">Rename</button><button class="btn sm" id="rep">📄 Report / PDF</button><button class="btn sm" id="wrd">📝 Word</button><button class="btn sm" id="bkpp">💾 Backup</button>${isAdmin?`<button class="btn sm" id="jsonp">⬇ JSON</button>`:""}<button class="btn sm danger" id="delp">Delete</button></div>
+    <button class="btn sm" id="wcfb">📑 WCF${proj.wcf&&proj.wcf.on?" ✓":""}</button><select class="btn sm" id="foldsel" title="Folder">${FOLDERS.map(f=>`<option${f===folderOf(proj)?" selected":""}>${esc(f)}</option>`).join("")}</select><button class="btn sm" id="lbl">🏷 Labels</button><button class="btn sm" id="ren">Rename</button><button class="btn sm" id="rep">📄 Report / PDF</button><button class="btn sm" id="wrd">📝 Word</button><button class="btn sm" id="bkpp">💾 Backup</button>${isAdmin?`<button class="btn sm" id="jsonp">⬇ JSON</button>`:""}<button class="btn sm danger" id="delp">Delete</button></div>
   <div class="chips noprint">
     <button class="chip ${filter==="all"?"on":""}" data-f="all">All (${items.length})</button>
     <button class="chip ${filter==="wait"?"on":""}" data-f="wait">Need ${esc(cfg.al.toLowerCase())} photo (${items.filter(i=>i.before.length&&!i.after.length).length})</button>
@@ -527,6 +585,7 @@ function bindProject(){
     busy("Deleting…");const it=items.find(x=>x.id===b.dataset.del);
     await removeFiles(pathsOf([it]));J(await sb.from("snaplog_items").delete().eq("id",it.id));logAct("Deleted item",proj.name+": "+iname(it));
     await loadItems();busy(false);renderProject();});
+  const fsel=$("#foldsel");if(fsel)fsel.onchange=async()=>{const v=fsel.value;busy("Saving…");try{J(await sb.from("snaplog_projects").update({folder:v}).eq("id",proj.id));proj.folder=v;logAct("Moved project to folder",proj.name+" → "+v)}finally{busy(false)}};
   const lb=$("#lbl");if(lb)lb.onclick=async()=>{
     const cur=labelsOf(proj);
     if(confirm("Set the names back to default (Before / After / Additional photos)?\n\nOK = reset to default\nCancel = type new names")){
@@ -955,8 +1014,8 @@ async function exportJson(only){
   if(!confirm(only?"Download this project as a .json data file?":"Download ALL projects as one .json data file? Large backups can take a few minutes."))return;
   try{
     busy("Preparing…");
-    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name,created_at,wcf,labels").is("deleted_at",null).order("created_at"));
-    const projects=prs.map(p=>({id:p.id,name:p.name,created:p.created_at?new Date(p.created_at).getTime():Date.now(),...(p.wcf?{wcf:p.wcf}:{}),...(p.labels?{labels:p.labels}:{})}));
+    const prs=only?[only]:J(await sb.from("snaplog_projects").select("id,name,created_at,wcf,labels,folder").is("deleted_at",null).order("created_at"));
+    const projects=prs.map(p=>({id:p.id,name:p.name,created:p.created_at?new Date(p.created_at).getTime():Date.now(),...(p.wcf?{wcf:p.wcf}:{}),...(p.labels?{labels:p.labels}:{}),...(p.folder?{folder:p.folder}:{})}));
     const parts=['{"v":1,"projects":'+JSON.stringify(projects)+',"items":['];
     let first=true,pi=0;
     for(const pr of prs){
@@ -986,7 +1045,7 @@ async function importJson(file){
   try{
     for(const p of d.projects){
       busy("Importing "+(p.name||"project")+"…");
-      const np=J(await sb.from("snaplog_projects").insert({name:p.name||"Imported project",created_at:new Date(p.created||Date.now()).toISOString(),...(p.wcf?{wcf:p.wcf}:{}),...(p.labels?{labels:p.labels}:{})}).select("id").single());
+      const np=J(await sb.from("snaplog_projects").insert({name:p.name||"Imported project",created_at:new Date(p.created||Date.now()).toISOString(),...(p.wcf?{wcf:p.wcf}:{}),...(p.labels?{labels:p.labels}:{}),...(p.folder?{folder:p.folder}:{})}).select("id").single());
       const its=d.items.filter(i=>i.projectId===p.id).sort((a,b)=>(a.order||0)-(b.order||0));
       for(const [idx,i] of its.entries()){
         const ni=J(await sb.from("snaplog_items").insert({project_id:np.id,position:Date.now()+idx,name:i.name||"",notes:i.notes||"",...(i.wcf?{wcf:i.wcf}:{})}).select("id").single());
