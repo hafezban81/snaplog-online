@@ -150,6 +150,8 @@ img.ghost{position:fixed;pointer-events:none;z-index:999;opacity:.9;object-fit:c
 .dgrid .thumbs{grid-template-columns:1fr 1fr}
 .rp-dgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px}.rp-dgrid img{width:100%;border-radius:4px}
 .ps{position:relative;display:block}.ps img{width:100%;display:block;border-radius:4px}
+.pw{position:relative;min-width:0}
+.ph{position:absolute;top:3px;left:3px;background:rgba(0,0,0,.55);color:#fff;font-size:13px;line-height:1;padding:3px 4px;border-radius:4px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 .pst{position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;line-height:1.3;padding:2px 5px;border-radius:3px}
 </style>
 </head>
@@ -645,10 +647,17 @@ function renderProject(){
 }
 let justDraggedPhoto=false;
 function bindPhotoDrag(){
-  document.querySelectorAll(".dent .thumbs img").forEach(im=>{im.draggable=false;im.addEventListener("dragstart",e=>e.preventDefault())});
-  document.querySelectorAll(".dent .thumbs img").forEach(im=>im.addEventListener("pointerdown",e=>{
+  document.querySelectorAll(".dent .thumbs img").forEach(im=>{
+    im.draggable=false;im.addEventListener("dragstart",e=>e.preventDefault());
+    if(!im.parentElement.classList.contains("pw")){
+      const w=document.createElement("div");w.className="pw";im.replaceWith(w);w.appendChild(im);
+      const h=document.createElement("span");h.className="ph";h.textContent="⠿";h.title="Drag to move";w.appendChild(h);
+    }
+  });
+  document.querySelectorAll(".dent .thumbs .ph").forEach(h=>h.addEventListener("pointerdown",e=>{
     if(e.pointerType==="mouse"&&e.button!==0)return;
-    e.stopPropagation();
+    e.stopPropagation();e.preventDefault();
+    const im=h.parentElement.querySelector("img");
     const itemId=im.dataset.i,from=+im.dataset.n,pid=e.pointerId,sx=e.clientX,sy=e.clientY;
     let ghost=null,over=null,destId=null;
     const cleanup=()=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up);removeEventListener("pointercancel",up)};
