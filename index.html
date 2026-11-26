@@ -258,7 +258,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-26.12";
+const APP_VER="2026-11-26.13";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -350,7 +350,7 @@ async function home(){
       const noScroll=ev=>{if(drag)ev.preventDefault()};
       const stop=()=>{clearTimeout(timer);removeEventListener("pointermove",onMove);removeEventListener("pointerup",onUp);removeEventListener("pointercancel",cancel);removeEventListener("touchmove",noScroll)};
       const clearShift=()=>{document.querySelectorAll(".proj").forEach(c=>{c.style.transform="";c.style.transition=""})};
-      const cancel=()=>{stop();if(drag){drag.ghost.remove();drag.el.style.display="";drag.el.classList.remove("dragging");drag.over?.classList.remove("over");clearShift();drag=null}};
+      const cancel=()=>{stop();if(drag){if(drag.raf)cancelAnimationFrame(drag.raf);drag.ghost.remove();drag.el.style.display="";drag.el.classList.remove("dragging");drag.over?.classList.remove("over");clearShift();drag=null}};
       const begin=()=>{
         drag={el,id:el.dataset.id,ghost:el.cloneNode(true),over:null,base:[],idx:0,h:el.offsetHeight+8};
         const r=el.getBoundingClientRect();
@@ -374,24 +374,39 @@ async function home(){
         if(!drag.hid){drag.hid=true;drag.el.style.display="none"}
         drag.ghost.style.left=(ev.clientX-drag.ghost.offsetWidth/2)+"px";
         drag.ghost.style.top=(ev.clientY-24)+"px";
-        const t=document.elementFromPoint(ev.clientX,ev.clientY)?.closest?.(".fold")||null;
+        drag.x=ev.clientX;drag.y=ev.clientY;
+        const E=90,vh=innerHeight;
+        drag.scrollDir=ev.clientY<E?-Math.ceil((E-ev.clientY)/5):ev.clientY>vh-E?Math.ceil((ev.clientY-(vh-E))/5):0;
+        if(drag.scrollDir&&!drag.raf)drag.raf=requestAnimationFrame(tick);
+        place();
+      };
+      const place=()=>{
+        const t=document.elementFromPoint(drag.x,drag.y)?.closest?.(".fold")||null;
         if(drag.over!==t){
           drag.over?.classList.remove("over");t?.classList.add("over");drag.over=t;
           drag.idx=0;drag.base=[];
           if(t)enter(t);
         }
         if(!t)return;
-        const idx=t.classList.contains("collapsed")?0:drag.base.filter(b=>ev.clientY>b.mid).length;
+        const idx=t.classList.contains("collapsed")?0:drag.base.filter(b=>drag.y>b.mid).length;
         if(idx!==drag.idx){
           drag.idx=idx;
           drag.base.forEach((b,i)=>{b.el.style.transition="transform .2s ease";b.el.style.transform=i>=idx?`translateY(${drag.h}px)`:""});
+        }
+      };
+      const tick=()=>{
+        if(!drag)return;
+        drag.raf=null;
+        if(drag.scrollDir){
+          const before=scrollY;window.scrollBy(0,drag.scrollDir);const moved=scrollY-before;
+          if(moved){drag.base.forEach(b=>b.mid-=moved);place();drag.raf=requestAnimationFrame(tick)}
         }
       };
       const onUp=async ev=>{
         if(ev.pointerId!==pid)return;
         stop();
         if(!drag)return;
-        const d=drag;drag=null;d.ghost.remove();d.el.style.display="";d.el.classList.remove("dragging");d.over?.classList.remove("over");clearShift();
+        const d=drag;drag=null;if(d.raf)cancelAnimationFrame(d.raf);d.ghost.remove();d.el.style.display="";d.el.classList.remove("dragging");d.over?.classList.remove("over");clearShift();
         justDragged=true;setTimeout(()=>justDragged=false,300);
         const target=d.over?.dataset.folder;
         const p=ps.find(x=>x.id===d.id);
