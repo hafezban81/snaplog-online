@@ -266,7 +266,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-27.5";
+const APP_VER="2026-11-27.6";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -678,12 +678,12 @@ function bindPhotoDrag(){
       ghost.remove();im.style.opacity="";over?.classList.remove("ptarget");
       justDraggedPhoto=true;setTimeout(()=>justDraggedPhoto=false,300);
       if(!over||over.dataset.i!==itemId)return;
-      let to=+over.dataset.n;if(over._after)to++;
+      const n=+over.dataset.n;
       const it=items.find(x=>x.id===itemId);
-      const arr=[...it.extra];const [moved]=arr.splice(from,1);
-      if(to>from)to--;
-      if(to===from)return;
-      arr.splice(to,0,moved);
+      const orig=[...it.extra];
+      const arr=[...orig];const [moved]=arr.splice(from,1);
+      arr.splice(over._after&&n===orig.length-1?orig.length:n,0,moved);
+      if(arr.every((p,i)=>p===orig[i]))return;
       busy("Saving…");
       try{
         const res=await Promise.all(arr.map((p,i)=>sb.from("snaplog_photos").update({position:i*10}).eq("id",p.id)));
