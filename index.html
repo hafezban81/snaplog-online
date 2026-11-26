@@ -263,7 +263,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-27.2";
+const APP_VER="2026-11-27.3";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -635,12 +635,53 @@ function renderProject(){
     }
   }
   $("#main").innerHTML=h;
-  if(isDef){["#wcfb","#lbl","#wrd"].forEach(x=>{const e=$(x);if(e)e.style.display="none"})}
+  if(isDef){["#wcfb","#lbl","#wrd"].forEach(x=>{const e=$(x);if(e)e.style.display="none"});bindDefectDrag()}
   bindProject();
+}
+function bindDefectDrag(){
+  document.querySelectorAll(".dent .grip").forEach(g=>g.addEventListener("pointerdown",e=>{
+    e.preventDefault();
+    const card=g.closest(".dent"),id=card.dataset.id,pid=e.pointerId,sy=e.clientY;
+    const r0=card.getBoundingClientRect();
+    let ghost=null,base=[],idx=0,h=0;
+    const start=()=>{
+      h=card.offsetHeight+8;
+      card.style.display="none";
+      base=[...document.querySelectorAll(".dent:not(.ghost)")].filter(c=>c!==card).map(c=>{const r=c.getBoundingClientRect();return{el:c,id:c.dataset.id,mid:r.top+r.height/2}});
+      ghost=card.cloneNode(true);ghost.classList.add("ghost");ghost.style.width=r0.width+"px";ghost.style.left=r0.left+"px";ghost.style.top=r0.top+"px";
+      document.body.appendChild(ghost);
+    };
+    const move=ev=>{
+      if(ev.pointerId!==pid)return;
+      if(!ghost){if(Math.abs(ev.clientY-sy)<8)return;start()}
+      ev.preventDefault();
+      ghost.style.top=(ev.clientY-24)+"px";
+      const n=base.filter(b=>ev.clientY>b.mid).length;
+      if(n!==idx){idx=n;base.forEach((b,i)=>{b.el.style.transition="transform .2s ease";b.el.style.transform=i>=idx?`translateY(${h}px)`:""})}
+    };
+    const cleanup=()=>{removeEventListener("pointermove",move);removeEventListener("pointerup",end);removeEventListener("pointercancel",end)};
+    const end=async ev=>{
+      if(ev.pointerId!==pid)return;
+      cleanup();
+      if(!ghost)return;
+      ghost.remove();card.style.display="";base.forEach(b=>{b.el.style.transform="";b.el.style.transition=""});
+      const ids=base.map(b=>b.id);ids.splice(idx,0,id);
+      if(ids.join()===items.map(i=>i.id).join())return renderProject();
+      busy("Saving…");
+      try{
+        const res=await Promise.all(ids.map((x,i)=>sb.from("snaplog_items").update({position:i*10}).eq("id",x)));
+        const bad=res.find(r=>r.error);if(bad)throw bad.error;
+        items=ids.map((x,i)=>{const it=items.find(y=>y.id===x);it.position=i*10;return it});
+        logAct("Reordered entries",proj.name);
+      }finally{busy(false)}
+      renderProject();
+    };
+    addEventListener("pointermove",move,{passive:false});addEventListener("pointerup",end);addEventListener("pointercancel",end);
+  }));
 }
 function defectList(){
   if(!items.length)return '<div class="empty">No entries yet.<br>Tap <b>＋ Add entry</b> to record a defect or progress photo.</div>';
-  return items.map((i,n)=>`<div class="card dent"><div class="num"><span>#${n+1}</span><button class="btn sm danger" data-del="${i.id}" style="padding:1px 7px">✕</button></div>
+  return items.map((i,n)=>`<div class="card dent" data-id="${i.id}"><div class="num"><span class="grip" title="Drag to reorder" style="cursor:grab;touch-action:none;user-select:none;padding:0 8px;font-size:18px">⠿</span><span>#${n+1}</span><button class="btn sm danger" data-del="${i.id}" style="padding:1px 7px">✕</button></div>
     <textarea class="nm" rows="1" placeholder="Title (e.g. Crack near lift lobby)" data-f="name" data-i="${i.id}">${esc(i.name)}</textarea>
     <textarea class="nt" rows="1" placeholder="Note" data-f="notes" data-i="${i.id}">${esc(i.notes)}</textarea>
     <div class="dgrid">${cell(i,"extra")}</div></div>`).join("");
