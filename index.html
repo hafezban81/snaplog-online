@@ -266,7 +266,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-27.6";
+const APP_VER="2026-11-27.7";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -648,7 +648,7 @@ function bindPhotoDrag(){
     if(e.pointerType==="mouse"&&e.button!==0)return;
     e.stopPropagation();
     const itemId=im.dataset.i,from=+im.dataset.n,pid=e.pointerId,sx=e.clientX,sy=e.clientY;
-    let ghost=null,over=null;
+    let ghost=null,over=null,destId=null;
     const cleanup=()=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up);removeEventListener("pointercancel",up)};
     const mv=ev=>{
       if(ev.pointerId!==pid)return;
@@ -660,8 +660,9 @@ function bindPhotoDrag(){
       }
       ev.preventDefault();
       ghost.style.left=(ev.clientX-ghost.offsetWidth/2)+"px";ghost.style.top=(ev.clientY-ghost.offsetHeight/2)+"px";
-      const box=document.elementFromPoint(ev.clientX,ev.clientY)?.closest?.('.dent[data-id="'+itemId+'"]')||null;
+      const box=document.elementFromPoint(ev.clientX,ev.clientY)?.closest?.(".dent")||null;
       let t=null;
+      destId=box?box.dataset.id:null;
       if(box){
         let best=1e9;
         box.querySelectorAll(".thumbs img").forEach(x=>{
@@ -677,9 +678,32 @@ function bindPhotoDrag(){
       if(!ghost)return;
       ghost.remove();im.style.opacity="";over?.classList.remove("ptarget");
       justDraggedPhoto=true;setTimeout(()=>justDraggedPhoto=false,300);
-      if(!over||over.dataset.i!==itemId)return;
-      const n=+over.dataset.n;
+      if(!destId)return;
       const it=items.find(x=>x.id===itemId);
+      if(destId!==itemId){
+        const dst=items.find(x=>x.id===destId);
+        if(!dst)return;
+        if(dst.extra.length>=MAXX){busy("That entry already has "+MAXX+" photos");setTimeout(()=>busy(false),1500);return}
+        const srcArr=[...it.extra];const [moved]=srcArr.splice(from,1);
+        const dstArr=[...dst.extra];
+        const at=over?+over.dataset.n+(over._after?1:0):dstArr.length;
+        dstArr.splice(at,0,moved);
+        busy("Saving…");
+        try{
+          const res=await Promise.all([
+            ...srcArr.map((p,i)=>sb.from("snaplog_photos").update({position:i*10}).eq("id",p.id)),
+            ...dstArr.map((p,i)=>sb.from("snaplog_photos").update(p===moved?{item_id:destId,position:i*10}:{position:i*10}).eq("id",p.id))
+          ]);
+          const bad=res.find(r=>r.error);if(bad)throw bad.error;
+          srcArr.forEach((p,i)=>p.position=i*10);it.extra=srcArr;
+          dstArr.forEach((p,i)=>p.position=i*10);dst.extra=dstArr;
+          logAct("Moved photo to another entry",proj.name);
+        }finally{busy(false)}
+        renderProject();
+        return;
+      }
+      if(!over)return;
+      const n=+over.dataset.n;
       const orig=[...it.extra];
       const arr=[...orig];const [moved]=arr.splice(from,1);
       arr.splice(over._after&&n===orig.length-1?orig.length:n,0,moved);
