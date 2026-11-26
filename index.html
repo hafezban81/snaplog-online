@@ -142,6 +142,10 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
 .card.ins-before{box-shadow:0 -3px 0 #2563eb}
 .card.ins-after{box-shadow:0 3px 0 #2563eb}
 .card.ghost{position:fixed;left:0;top:0;pointer-events:none;z-index:999;opacity:.95;box-shadow:0 8px 24px rgba(0,0,0,.25);margin:0}
+.dent{padding:10px}
+.dgrid{margin-top:6px}
+.dgrid .thumbs{grid-template-columns:1fr 1fr}
+.rp-dgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px}.rp-dgrid img{width:100%;border-radius:4px}
 </style>
 </head>
 <body>
@@ -259,7 +263,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-26.15";
+const APP_VER="2026-11-27.1";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -320,6 +324,7 @@ function compress(file,label){return new Promise((res,rej)=>{
 let view="home",proj=null,items=[],filter="all",viewing=null,rates=[];
 
 /* ---------- prompt dialog ---------- */
+function askKind(){return new Promise(res=>{const s=$("#kindSheet");s.style.display="flex";const done=v=>{s.style.display="none";$("#kBa").onclick=$("#kDef").onclick=$("#kCan").onclick=null;res(v)};$("#kBa").onclick=()=>done("ba");$("#kDef").onclick=()=>done("defect");$("#kCan").onclick=()=>done(null)})}
 function ask(title,val="",type="text"){return new Promise(res=>{
   $("#ptitle").textContent=title;const i=$("#pinput");i.type=type;i.value=val;
   $("#prompt").classList.add("on");setTimeout(()=>i.focus(),50);
@@ -466,7 +471,7 @@ async function home(){
 /* ---------- PROJECT ---------- */
 async function openProject(id){
   busy("Loading…");
-  const r=await sb.from("snaplog_projects").select("id,name,wcf,labels,folder").eq("id",id).maybeSingle();
+  const r=await sb.from("snaplog_projects").select("id,name,wcf,labels,folder,kind").eq("id",id).maybeSingle();
   proj=r.data;if(!proj){busy(false);return home()}applyLabels(proj);
   view="proj";filter="all";await Promise.all([loadItems(),loadRates()]);busy(false);renderProject();
 }
@@ -605,18 +610,20 @@ function cell(i,kind){
   return h;}
 
 function renderProject(){
+  const isDef=proj.kind==="defect";
   $("#back").style.display="";$("#title").textContent=proj.name;$("#title").classList.remove("wa");
-  $("#fab").style.display="";$("#fab").textContent="＋ Add item";
+  $("#fab").style.display="";$("#fab").textContent=isDef?"＋ Add entry":"＋ Add item";
   const nb=items.filter(i=>i.before.length).length,na=items.filter(i=>i.after.length).length;
   const list=items.filter(i=>filter==="all"||(filter==="wait"&&i.before.length&&!i.after.length)||(filter==="done"&&i.before.length&&i.after.length));
   let h=`<div class="noprint" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
     <span style="color:var(--mute);font-size:13px;flex:1">${items.length} items · ${nb} ${esc(cfg.bl.toLowerCase())} · ${na} ${esc(cfg.al.toLowerCase())}</span>
     <button class="btn sm" id="wcfb">📑 WCF${proj.wcf&&proj.wcf.on?" ✓":""}</button><select class="btn sm" id="foldsel" title="Folder">${FOLDERS.map(f=>`<option${f===folderOf(proj)?" selected":""}>${esc(f)}</option>`).join("")}</select><button class="btn sm" id="lbl">🏷 Labels</button><button class="btn sm" id="ren">Rename</button><button class="btn sm" id="rep">📄 Report / PDF</button><button class="btn sm" id="wrd">📝 Word</button><button class="btn sm" id="bkpp">💾 Backup</button>${isAdmin?`<button class="btn sm" id="jsonp">⬇ JSON</button>`:""}<button class="btn sm danger" id="delp">Delete</button></div>
-  <div class="chips noprint">
+  ${isDef?"":`<div class="chips noprint">
     <button class="chip ${filter==="all"?"on":""}" data-f="all">All (${items.length})</button>
     <button class="chip ${filter==="wait"?"on":""}" data-f="wait">Need ${esc(cfg.al.toLowerCase())} photo (${items.filter(i=>i.before.length&&!i.after.length).length})</button>
-    <button class="chip ${filter==="done"?"on":""}" data-f="done">Complete (${items.filter(i=>i.before.length&&i.after.length).length})</button></div>`;
-  if(!items.length)h+='<div class="empty">No items yet.<br>Tap <b>＋ Add item</b> – one row per replacement / job.</div>';
+    <button class="chip ${filter==="done"?"on":""}" data-f="done">Complete (${items.filter(i=>i.before.length&&i.after.length).length})</button></div>`}`;
+  if(isDef)h+=defectList();
+  else if(!items.length)h+='<div class="empty">No items yet.<br>Tap <b>＋ Add item</b> – one row per replacement / job.</div>';
   else{
     h+=`<div class="grid-h"><div>Item</div><div>📷 ${esc(cfg.bl)}</div><div>✅ ${esc(cfg.al)}</div></div>`;
     if(!list.length)h+='<div class="row"><div style="grid-column:1/4;color:var(--mute);text-align:center;padding:20px">Nothing in this filter.</div></div>';
@@ -628,7 +635,15 @@ function renderProject(){
     }
   }
   $("#main").innerHTML=h;
+  if(isDef){["#wcfb","#lbl","#wrd"].forEach(x=>{const e=$(x);if(e)e.style.display="none"})}
   bindProject();
+}
+function defectList(){
+  if(!items.length)return '<div class="empty">No entries yet.<br>Tap <b>＋ Add entry</b> to record a defect or progress photo.</div>';
+  return items.map((i,n)=>`<div class="card dent"><div class="num"><span>#${n+1}</span><button class="btn sm danger" data-del="${i.id}" style="padding:1px 7px">✕</button></div>
+    <textarea class="nm" rows="1" placeholder="Title (e.g. Crack near lift lobby)" data-f="name" data-i="${i.id}">${esc(i.name)}</textarea>
+    <textarea class="nt" rows="1" placeholder="Note" data-f="notes" data-i="${i.id}">${esc(i.notes)}</textarea>
+    <div class="dgrid">${cell(i,"extra")}</div></div>`).join("");
 }
 
 function bindProject(){
@@ -867,8 +882,9 @@ function report(){
   view="report";
   $("#fab").style.display="none";
   let h=`<div class="noprint" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center"><button class="btn" id="rb">‹ Back</button><button class="btn primary" onclick="window.print()">🖨 Print / Save as PDF</button><button class="btn primary" id="rw">📝 Word (.docx)</button>${cfg.stamp?`<label style="font-size:13px;color:var(--mute)">Report date <input type="datetime-local" id="rdate" value="${toLocalInput(reportT)}" style="font:inherit;padding:5px;border:1px solid var(--line);border-radius:8px"></label>`:""}</div>
-  <h2 style="margin:0 0 4px;${proj.wcf&&proj.wcf.on?'break-before:page;':''}">${esc(proj.name)}</h2><div style="color:#666;margin-bottom:14px">${esc(cfg.bl)} / ${esc(cfg.al)} photo report${cfg.stamp?` · <span id="rhead">${fmt(reportT)}</span>`:""}</div>`;
-  items.forEach((i,n)=>{
+  <h2 style="margin:0 0 4px;${proj.wcf&&proj.wcf.on?'break-before:page;':''}">${esc(proj.name)}</h2><div style="color:#666;margin-bottom:14px">${proj.kind==="defect"?"Defect / photo list":esc(cfg.bl)+" / "+esc(cfg.al)+" photo report"}${cfg.stamp?` · <span id="rhead">${fmt(reportT)}</span>`:""}</div>`;
+  if(proj.kind==="defect"){h+=items.map((i,n)=>`<div class="rp-item"><h4>#${n+1} ${esc(i.name||"(no name)")}</h4>${i.notes?`<div class="dt" style="margin-bottom:6px">${esc(i.notes)}</div>`:""}<div class="rp-dgrid">${i.extra.length?i.extra.map(p=>`<div><img src="${p.d}">${cfg.stamp?`<div class="dt">${fmt(p.t)}</div>`:""}</div>`).join(""):'<div class="dt">— no photo —</div>'}</div></div>`).join("");}
+  else items.forEach((i,n)=>{
     const col=(ph)=>ph.length?ph.map(p=>`<img src="${p.d}">${cfg.stamp?`<div class="dt">${fmt(p.t)}</div>`:""}`).join(""):'<div class="dt">— no photo —</div>';
     h+=`<div class="rp-item"><h4>#${n+1} ${esc(i.name||"(no name)")}</h4>${i.notes?`<div class="dt" style="margin-bottom:6px">${esc(i.notes)}</div>`:""}
       <div class="rp-cols"><div><b>${esc(cfg.bl.toUpperCase())}</b>${col(i.before)}</div><div><b>${esc(cfg.al.toUpperCase())}</b>${col(i.after)}</div></div>
@@ -876,6 +892,7 @@ function report(){
   });
   { const k=h.indexOf("<h2"); h=h.slice(0,k)+wcfReportHtml()+h.slice(k); }
   $("#main").innerHTML=h;
+  if(proj.kind==="defect"){const w=$("#rw");if(w)w.style.display="none"}
   document.querySelectorAll("#main .rp-cols img,#main .rp-ex img").forEach(im=>{const f=()=>{if(im.naturalWidth>im.naturalHeight)im.classList.add("ls")};im.complete?f():im.addEventListener("load",f)});
   $("#rb").onclick=renderProject;$("#rw").onclick=exportDocx;window.scrollTo(0,0);
   const rd=$("#rdate");if(rd)rd.oninput=e=>{const t=new Date(e.target.value).getTime();if(!isNaN(t)){reportT=t;$("#rhead").textContent=fmt(t)}};
@@ -1015,7 +1032,8 @@ $("#back").onclick=()=>{if(view==="report")renderProject();else home()};
 $("#fab").onclick=async()=>{
   if(view==="home"){
     const n=await ask("New project name");if(!n)return;
-    busy("Creating…");const p=J(await sb.from("snaplog_projects").insert({name:n}).select("id,name").single());logAct("Created project",n);busy(false);openProject(p.id);
+    const kind=await askKind();if(!kind)return;
+    busy("Creating…");const p=J(await sb.from("snaplog_projects").insert({name:n,kind:kind==="defect"?"defect":null}).select("id,name").single());logAct("Created project",n+(kind==="defect"?" (defect list)":""));busy(false);openProject(p.id);
   }else if(view==="proj"){
     busy("Adding…");const r=J(await sb.from("snaplog_items").insert({project_id:proj.id,position:Date.now()}).select("id").single());logAct("Added item",proj.name);
     filter="all";await loadItems();busy(false);renderProject();
@@ -1188,5 +1206,5 @@ $("#lp").onkeydown=e=>{if(e.key==="Enter")$("#lbtn").click()};
   sb.auth.onAuthStateChange(ev=>{if(ev==="SIGNED_OUT")showLogin()});
 })();
 </script>
-</body>
+<div id="kindSheet" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);align-items:flex-end;justify-content:center;z-index:60"><div style="background:#fff;width:100%;max-width:520px;border-radius:16px 16px 0 0;padding:16px"><h3 style="margin:0 0 8px">What is this project for?</h3><button class="btn primary" id="kBa" style="width:100%;margin:6px 0">Before / After</button><button class="btn primary" id="kDef" style="width:100%;margin:6px 0">Defects / Photo log</button><button class="btn" disabled style="width:100%;margin:6px 0;opacity:.5">Batch dump (under construction)</button><button class="btn" id="kCan" style="width:100%;margin:6px 0">Cancel</button></div></div></body>
 </html>
