@@ -17,6 +17,7 @@ html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 -apple-sy
 button{font:inherit;cursor:pointer}
 header.top{position:sticky;top:0;z-index:20;background:#1b3a8c;color:#fff;border-bottom:1px solid #12296a;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;display:flex;align-items:center;gap:8px}
 header.top h1{font-size:17px;margin:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header.top h1.wa{font-family:Impact,"Arial Black",Haettenschweiler,sans-serif;font-size:24px;font-weight:900;letter-spacing:1px;text-transform:uppercase;padding:2px 0;background:linear-gradient(90deg,#ffe066 0%,#ff9f1c 30%,#ff3d7f 60%,#a78bfa 80%,#38bdf8 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:.8px #ffffff;filter:drop-shadow(0 2px 0 #0b1d4d) drop-shadow(0 0 6px rgba(255,255,255,.35))}
 .btn{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:8px 12px;color:var(--ink)}
 .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
 .btn.danger{color:var(--bad)}
@@ -258,7 +259,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-26.13";
+const APP_VER="2026-11-26.14";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -330,7 +331,7 @@ function ask(title,val="",type="text"){return new Promise(res=>{
 /* ---------- HOME ---------- */
 async function home(){
   view="home";proj=null;
-  $("#back").style.display="none";$("#title").textContent="SnapLog Online";
+  $("#back").style.display="none";$("#title").textContent="SnapLog Online";$("#title").classList.add("wa");
   $("#fab").style.display="";$("#fab").textContent="＋ New project";
   busy("Loading…");
   const ps=J(await sb.from("snaplog_projects").select("id,name,created_at,folder,sort_order,labels,snaplog_items(id,snaplog_photos(kind))").is("deleted_at",null).order("sort_order",{ascending:true,nullsFirst:false}).order("created_at",{ascending:false}));
@@ -604,7 +605,7 @@ function cell(i,kind){
   return h;}
 
 function renderProject(){
-  $("#back").style.display="";$("#title").textContent=proj.name;
+  $("#back").style.display="";$("#title").textContent=proj.name;$("#title").classList.remove("wa");
   $("#fab").style.display="";$("#fab").textContent="＋ Add item";
   const nb=items.filter(i=>i.before.length).length,na=items.filter(i=>i.after.length).length;
   const list=items.filter(i=>filter==="all"||(filter==="wait"&&i.before.length&&!i.after.length)||(filter==="done"&&i.before.length&&i.after.length));
