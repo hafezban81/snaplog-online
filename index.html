@@ -270,7 +270,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-27.10";
+const APP_VER="2026-11-27.11";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -617,6 +617,7 @@ function cell(i,kind){
   return h;}
 
 function renderProject(){
+  view="proj";
   const isDef=proj.kind==="defect";
   $("#back").style.display="";$("#title").textContent=proj.name;$("#title").classList.remove("wa");
   $("#fab").style.display="";$("#fab").textContent=isDef?"＋ Add entry":"＋ Add item";
