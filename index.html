@@ -255,7 +255,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-26.6";
+const APP_VER="2026-11-26.7";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -407,7 +407,7 @@ async function home(){
     const q=f.q.trim().toLowerCase();
     const list=rows.filter(r=>(!f.fo||folderOf(r.p)===f.fo)&&(!q||r.p.name.toLowerCase().includes(q)));
     let h=`<input id="psearch" class="psearch" placeholder="🔍 Search projects" value="${esc(f.q)}">`;
-    h+=`<div class="chips">`+FOLDERS.map(fd=>`<span class="chip${f.fo===fd?" on":""}" data-fo="${esc(fd)}">${esc(SHORT[fd])} ${rows.filter(r=>folderOf(r.p)===fd).length}</span>`).join("")+`</div>`;
+    h+=`<div class="chips"><span class="chip${!f.fo?" on":""}" data-fo="">All ${rows.length}</span>`+FOLDERS.map(fd=>`<span class="chip${f.fo===fd?" on":""}" data-fo="${esc(fd)}">${esc(SHORT[fd])} ${rows.filter(r=>folderOf(r.p)===fd).length}</span>`).join("")+`</div>`;
     if(!ps.length)h+='<div class="empty">No projects yet.<br>Tap <b>＋ New project</b> to start.</div>';
     else if(!list.length)h+='<div class="empty">No matching projects.</div>';
     for(const fd of FOLDERS){
@@ -427,7 +427,7 @@ async function home(){
     document.querySelectorAll(".proj").forEach(e=>e.onclick=()=>{if(!justDragged)openProject(e.dataset.id)});
     document.querySelectorAll(".fhead").forEach(h=>h.onclick=()=>{if(justDragged)return;const k=h.dataset.f;opened.has(k)?opened.delete(k):opened.add(k);localStorage.pl_fopen=JSON.stringify([...opened]);draw()});
     bindDrag();
-    document.querySelectorAll("[data-fo]").forEach(e=>e.onclick=()=>{f.fo=f.fo===e.dataset.fo?null:e.dataset.fo;draw()});
+    document.querySelectorAll("[data-fo]").forEach(e=>e.onclick=()=>{f.fo=(e.dataset.fo&&f.fo!==e.dataset.fo)?e.dataset.fo:null;draw()});
     const inp=$("#psearch");
     inp.oninput=()=>{f.q=inp.value;const pos=inp.selectionStart;draw();const n=$("#psearch");n.focus();n.setSelectionRange(pos,pos);};
   };
