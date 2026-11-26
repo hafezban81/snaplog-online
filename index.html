@@ -255,7 +255,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-26.5";
+const APP_VER="2026-11-26.6";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -268,6 +268,7 @@ const kname=k=>k==="before"?cfg.bl:k==="after"?cfg.al:cfg.xlabel;
 const DEF_LABELS={bl:"Before",al:"After",xl:"Additional photos"};
 const FOLDERS=["AutoCity","AutoCare","Ang Mo Kio Park 1","Sin Ming Ind Est","Others"];
 const folderOf=p=>FOLDERS.includes(p&&p.folder)?p.folder:"Others";
+const SHORT={"AutoCity":"AutoCity","AutoCare":"AutoCare","Ang Mo Kio Park 1":"AMKP1","Sin Ming Ind Est":"SMIE","Others":"Other"};
 const labelsOf=p=>{const l=(p&&p.labels)||{};return{bl:String(l.bl||"").trim()||DEF_LABELS.bl,al:String(l.al||"").trim()||DEF_LABELS.al,xl:String(l.xl||"").trim()||DEF_LABELS.xl}};
 const applyLabels=p=>{const l=labelsOf(p);cfg.bl=l.bl;cfg.al=l.al;cfg.xlabel=l.xl};
 const who=()=>(me&&me.email||"").replace(/@snaplog\.(app|online)$/i,"");
@@ -334,7 +335,7 @@ async function home(){
   const has=(i,k)=>i.snaplog_photos.some(x=>x.kind===k);
   const rows=ps.map(p=>{const li=p.snaplog_items;const b=li.filter(i=>has(i,"before")).length,a=li.filter(i=>has(i,"after")).length;
     return {p,n:li.length,b,a,pct:li.length?Math.round(a/li.length*100):0,done:li.length>0&&a===li.length};});
-  const f={q:"",s:"all"};
+  const f={q:"",fo:null};
   let drag=null,justDragged=false;
   let opened=new Set(JSON.parse(localStorage.pl_fopen||"[]"));
   function bindDrag(){
@@ -404,15 +405,15 @@ async function home(){
   }
   const draw=()=>{
     const q=f.q.trim().toLowerCase();
-    const cnt={all:rows.length,prog:rows.filter(r=>!r.done).length,done:rows.filter(r=>r.done).length};
-    const list=rows.filter(r=>(f.s==="all"||(f.s==="done")===r.done)&&(!q||r.p.name.toLowerCase().includes(q)));
+    const list=rows.filter(r=>(!f.fo||folderOf(r.p)===f.fo)&&(!q||r.p.name.toLowerCase().includes(q)));
     let h=`<input id="psearch" class="psearch" placeholder="🔍 Search projects" value="${esc(f.q)}">`;
-    h+=`<div class="chips">`+[["all","All"],["prog","In progress"],["done","Done"]].map(([k,l])=>`<span class="chip${f.s===k?" on":""}" data-s="${k}">${l} ${cnt[k]}</span>`).join("")+`</div>`;
+    h+=`<div class="chips">`+FOLDERS.map(fd=>`<span class="chip${f.fo===fd?" on":""}" data-fo="${esc(fd)}">${esc(SHORT[fd])} ${rows.filter(r=>folderOf(r.p)===fd).length}</span>`).join("")+`</div>`;
     if(!ps.length)h+='<div class="empty">No projects yet.<br>Tap <b>＋ New project</b> to start.</div>';
     else if(!list.length)h+='<div class="empty">No matching projects.</div>';
     for(const fd of FOLDERS){
+      if(f.fo&&fd!==f.fo)continue;
       const inF=list.filter(r=>folderOf(r.p)===fd);
-      const forceOpen=f.q.trim()!==""||f.s!=="all";
+      const forceOpen=f.q.trim()!==""||!!f.fo;
       const isC=!forceOpen&&!opened.has(fd);
       h+=`<div class="fold${isC?" collapsed":""}" data-folder="${esc(fd)}"><div class="fhead" data-f="${esc(fd)}"><span>📁 ${esc(fd)}</span><span class="fr"><span>${inF.length}</span><button class="fbtn" data-f="${esc(fd)}" aria-label="${isC?"Expand":"Collapse"} ${esc(fd)}">${isC?"+":"−"}</button></span></div>`;
       if(!isC)for(const r of inF){
@@ -426,7 +427,7 @@ async function home(){
     document.querySelectorAll(".proj").forEach(e=>e.onclick=()=>{if(!justDragged)openProject(e.dataset.id)});
     document.querySelectorAll(".fhead").forEach(h=>h.onclick=()=>{if(justDragged)return;const k=h.dataset.f;opened.has(k)?opened.delete(k):opened.add(k);localStorage.pl_fopen=JSON.stringify([...opened]);draw()});
     bindDrag();
-    document.querySelectorAll(".chip").forEach(e=>e.onclick=()=>{f.s=e.dataset.s;draw();});
+    document.querySelectorAll("[data-fo]").forEach(e=>e.onclick=()=>{f.fo=f.fo===e.dataset.fo?null:e.dataset.fo;draw()});
     const inp=$("#psearch");
     inp.oninput=()=>{f.q=inp.value;const pos=inp.selectionStart;draw();const n=$("#psearch");n.focus();n.setSelectionRange(pos,pos);};
   };
