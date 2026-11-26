@@ -255,7 +255,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-26.9";
+const APP_VER="2026-11-26.10";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -350,8 +350,10 @@ async function home(){
       const cancel=()=>{stop();if(drag){drag.ghost.remove();drag.el.style.display="";drag.el.classList.remove("dragging");drag.over?.classList.remove("over");clearShift();drag=null}};
       const begin=()=>{
         drag={el,id:el.dataset.id,ghost:el.cloneNode(true),over:null,base:[],idx:0,h:el.offsetHeight+8};
-        drag.ghost.classList.add("ghost");drag.ghost.style.width=el.offsetWidth+"px";
-        document.body.appendChild(drag.ghost);el.classList.add("dragging");el.style.display="none";
+        const r=el.getBoundingClientRect();
+        drag.ghost.classList.add("ghost");drag.ghost.style.width=r.width+"px";
+        drag.ghost.style.left=r.left+"px";drag.ghost.style.top=r.top+"px";
+        document.body.appendChild(drag.ghost);el.classList.add("dragging");
         addEventListener("touchmove",noScroll,{passive:false});
       };
       // snapshot the resting positions of the cards in a folder, before any shifting
@@ -366,6 +368,7 @@ async function home(){
           return;
         }
         ev.preventDefault();
+        if(!drag.hid){drag.hid=true;drag.el.style.display="none"}
         drag.ghost.style.left=(ev.clientX-drag.ghost.offsetWidth/2)+"px";
         drag.ghost.style.top=(ev.clientY-24)+"px";
         const t=document.elementFromPoint(ev.clientX,ev.clientY)?.closest?.(".fold")||null;
