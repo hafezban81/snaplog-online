@@ -133,6 +133,8 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
 .fempty{color:var(--mute);font-size:13px;text-align:center;padding:12px;border:1px dashed #bbb;border-radius:10px;margin:4px 0 8px}
 .card.prow.proj{user-select:none;-webkit-user-select:none;touch-action:pan-y}
 .card.dragging{opacity:.35}
+.card.ins-before{box-shadow:0 -3px 0 #2563eb}
+.card.ins-after{box-shadow:0 3px 0 #2563eb}
 .card.ghost{position:fixed;left:0;top:0;pointer-events:none;z-index:999;opacity:.95;box-shadow:0 8px 24px rgba(0,0,0,.25);margin:0}
 </style>
 </head>
@@ -251,7 +253,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-26.1";
+const APP_VER="2026-11-26.2";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -325,7 +327,7 @@ async function home(){
   $("#back").style.display="none";$("#title").textContent="SnapLog Online";
   $("#fab").style.display="";$("#fab").textContent="＋ New project";
   busy("Loading…");
-  const ps=J(await sb.from("snaplog_projects").select("id,name,created_at,folder,labels,snaplog_items(id,snaplog_photos(kind))").is("deleted_at",null).order("created_at",{ascending:false}));
+  const ps=J(await sb.from("snaplog_projects").select("id,name,created_at,folder,sort_order,labels,snaplog_items(id,snaplog_photos(kind))").is("deleted_at",null).order("sort_order",{ascending:true,nullsFirst:false}).order("created_at",{ascending:false}));
   busy(false);
   const has=(i,k)=>i.snaplog_photos.some(x=>x.kind===k);
   const rows=ps.map(p=>{const li=p.snaplog_items;const b=li.filter(i=>has(i,"before")).length,a=li.filter(i=>has(i,"after")).length;
@@ -339,7 +341,7 @@ async function home(){
       let timer=null;
       const noScroll=ev=>{if(drag)ev.preventDefault()};
       const stop=()=>{clearTimeout(timer);removeEventListener("pointermove",onMove);removeEventListener("pointerup",onUp);removeEventListener("pointercancel",cancel);removeEventListener("touchmove",noScroll)};
-      const cancel=()=>{stop();if(drag){drag.ghost.remove();drag.el.classList.remove("dragging");drag.over?.classList.remove("over");drag=null}};
+      const cancel=()=>{stop();if(drag){drag.ghost.remove();drag.el.classList.remove("dragging");drag.over?.classList.remove("over");drag.insEl?.classList.remove("ins-before","ins-after");drag=null}};
       const begin=()=>{
         drag={el,id:el.dataset.id,ghost:el.cloneNode(true),over:null};
         drag.ghost.classList.add("ghost");drag.ghost.style.width=el.offsetWidth+"px";
@@ -355,22 +357,43 @@ async function home(){
         ev.preventDefault();
         drag.ghost.style.left=(ev.clientX-drag.ghost.offsetWidth/2)+"px";
         drag.ghost.style.top=(ev.clientY-24)+"px";
-        const t=document.elementFromPoint(ev.clientX,ev.clientY)?.closest?.(".fold")||null;
+        const hit=document.elementFromPoint(ev.clientX,ev.clientY);
+        const t=hit?.closest?.(".fold")||null;
         if(drag.over!==t){drag.over?.classList.remove("over");t?.classList.add("over");drag.over=t}
+        const card=hit?.closest?.(".proj")||null;
+        if(card&&card!==drag.el&&t&&card.closest(".fold")===t){
+          const r=card.getBoundingClientRect();const before=ev.clientY<r.top+r.height/2;
+          if(drag.insEl!==card||drag.insBefore!==before){
+            drag.insEl?.classList.remove("ins-before","ins-after");
+            drag.insEl=card;drag.insBefore=before;drag.ins={el:card,before};
+            card.classList.add(before?"ins-before":"ins-after");
+          }
+        }
       };
       const onUp=async ev=>{
         if(ev.pointerId!==pid)return;
         stop();
         if(!drag)return;
-        const d=drag;drag=null;d.ghost.remove();d.el.classList.remove("dragging");d.over?.classList.remove("over");
+        const d=drag;drag=null;d.ghost.remove();d.el.classList.remove("dragging");d.over?.classList.remove("over");d.insEl?.classList.remove("ins-before","ins-after");
         justDragged=true;setTimeout(()=>justDragged=false,300);
         const target=d.over?.dataset.folder;
         const p=ps.find(x=>x.id===d.id);
-        if(!target||!p||folderOf(p)===target)return;
-        busy("Moving…");
-        try{J(await sb.from("snaplog_projects").update({folder:target}).eq("id",p.id));p.folder=target;logAct("Moved project to folder",p.name+" → "+target)}
-        finally{busy(false)}
-        draw();
+        if(!target||!p)return;
+        const sameFolder=folderOf(p)===target;
+        if(sameFolder&&!d.ins)return;
+        const sec=[...document.querySelectorAll(".fold")].find(x=>x.dataset.folder===target);
+        const ids=[...sec.querySelectorAll(".proj")].map(e=>e.dataset.id).filter(x=>x!==p.id);
+        let idx=ids.length;
+        if(d.ins){const k=ids.indexOf(d.ins.el.dataset.id);if(k>=0)idx=k+(d.ins.before?0:1)}
+        ids.splice(idx,0,p.id);
+        busy("Saving…");
+        try{
+          const res=await Promise.all(ids.map((id,i)=>{const u={sort_order:i*10};if(id===p.id)u.folder=target;return sb.from("snaplog_projects").update(u).eq("id",id)}));
+          const bad=res.find(x=>x.error);if(bad)throw bad.error;
+          if(!sameFolder)logAct("Moved project to folder",p.name+" → "+target);
+          else logAct("Reordered projects",target);
+        }finally{busy(false)}
+        home();
       };
       addEventListener("pointermove",onMove,{passive:false});addEventListener("pointerup",onUp);addEventListener("pointercancel",cancel);
       if(touch)timer=setTimeout(()=>{if(!drag)begin()},350);
