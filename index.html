@@ -143,6 +143,9 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
 .card.ins-after{box-shadow:0 3px 0 #2563eb}
 .card.ghost{position:fixed;left:0;top:0;pointer-events:none;z-index:999;opacity:.95;box-shadow:0 8px 24px rgba(0,0,0,.25);margin:0}
 .dent{padding:10px}
+img.ghost{position:fixed;pointer-events:none;z-index:999;opacity:.9;object-fit:cover;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.3)}
+.thumbs img.ptarget{outline:3px solid #2563eb;outline-offset:-3px}
+.thumbs img{touch-action:none;cursor:grab}
 .dgrid{margin-top:6px}
 .dgrid .thumbs{grid-template-columns:1fr 1fr}
 .rp-dgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px}.rp-dgrid img{width:100%;border-radius:4px}
@@ -263,7 +266,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-27.3";
+const APP_VER="2026-11-27.4";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -293,12 +296,12 @@ async function signedUrls(paths){
   return m;
 }
 async function fetchItems(pid){
-  const rows=J(await sb.from("snaplog_items").select("id,name,notes,position,wcf,snaplog_photos(id,kind,path,orig_path,marks,created_at)").eq("project_id",pid).order("position"));
+  const rows=J(await sb.from("snaplog_items").select("id,name,notes,position,wcf,snaplog_photos(id,kind,path,orig_path,marks,created_at,position)").eq("project_id",pid).order("position"));
   const urls=await signedUrls(rows.flatMap(r=>r.snaplog_photos.map(p=>p.path)));
   return rows.map(r=>{
     const it={id:r.id,position:r.position,name:r.name||"",notes:r.notes||"",wcf:r.wcf||null,before:[],after:[],extra:[]};
-    r.snaplog_photos.slice().sort((a,b)=>a.created_at<b.created_at?-1:a.created_at>b.created_at?1:0).forEach(p=>{
-      if(it[p.kind])it[p.kind].push({id:p.id,path:p.path,d:urls[p.path]||"",o:p.orig_path||undefined,m:p.marks||undefined,t:new Date(p.created_at).getTime()});
+    r.snaplog_photos.slice().sort((a,b)=>((a.position??1e9)-(b.position??1e9))||(a.created_at<b.created_at?-1:a.created_at>b.created_at?1:0)).forEach(p=>{
+      if(it[p.kind])it[p.kind].push({id:p.id,position:p.position,path:p.path,d:urls[p.path]||"",o:p.orig_path||undefined,m:p.marks||undefined,t:new Date(p.created_at).getTime()});
     });
     return it;
   });
@@ -638,7 +641,52 @@ function renderProject(){
   if(isDef){["#wcfb","#lbl","#wrd"].forEach(x=>{const e=$(x);if(e)e.style.display="none"});bindDefectDrag()}
   bindProject();
 }
+let justDraggedPhoto=false;
+function bindPhotoDrag(){
+  document.querySelectorAll(".dent .thumbs img").forEach(im=>{im.draggable=false;im.addEventListener("dragstart",e=>e.preventDefault())});
+  document.querySelectorAll(".dent .thumbs img").forEach(im=>im.addEventListener("pointerdown",e=>{
+    if(e.pointerType==="mouse"&&e.button!==0)return;
+    e.stopPropagation();
+    const itemId=im.dataset.i,from=+im.dataset.n,pid=e.pointerId,sx=e.clientX,sy=e.clientY;
+    let ghost=null,over=null;
+    const cleanup=()=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up);removeEventListener("pointercancel",up)};
+    const mv=ev=>{
+      if(ev.pointerId!==pid)return;
+      if(!ghost){
+        if(Math.hypot(ev.clientX-sx,ev.clientY-sy)<8)return;
+        const r=im.getBoundingClientRect();
+        ghost=im.cloneNode(true);ghost.classList.add("ghost");ghost.style.width=r.width+"px";ghost.style.height=r.height+"px";
+        document.body.appendChild(ghost);im.style.opacity=".35";
+      }
+      ev.preventDefault();
+      ghost.style.left=(ev.clientX-ghost.offsetWidth/2)+"px";ghost.style.top=(ev.clientY-ghost.offsetHeight/2)+"px";
+      const t=document.elementFromPoint(ev.clientX,ev.clientY)?.closest?.(".thumbs img")||null;
+      if(over!==t){over?.classList.remove("ptarget");over=t;over?.classList.add("ptarget")}
+    };
+    const up=async ev=>{
+      if(ev.pointerId!==pid)return;
+      cleanup();
+      if(!ghost)return;
+      ghost.remove();im.style.opacity="";over?.classList.remove("ptarget");
+      justDraggedPhoto=true;setTimeout(()=>justDraggedPhoto=false,300);
+      if(!over||over.dataset.i!==itemId)return;
+      const to=+over.dataset.n;if(to===from)return;
+      const it=items.find(x=>x.id===itemId);
+      const arr=[...it.extra];const [moved]=arr.splice(from,1);arr.splice(to,0,moved);
+      busy("Saving…");
+      try{
+        const res=await Promise.all(arr.map((p,i)=>sb.from("snaplog_photos").update({position:i*10}).eq("id",p.id)));
+        const bad=res.find(r=>r.error);if(bad)throw bad.error;
+        arr.forEach((p,i)=>p.position=i*10);it.extra=arr;
+        logAct("Reordered photos",proj.name);
+      }finally{busy(false)}
+      renderProject();
+    };
+    addEventListener("pointermove",mv,{passive:false});addEventListener("pointerup",up);addEventListener("pointercancel",up);
+  }));
+}
 function bindDefectDrag(){
+  bindPhotoDrag();
   document.querySelectorAll(".dent .grip").forEach(g=>g.addEventListener("pointerdown",e=>{
     e.preventDefault();
     const card=g.closest(".dent"),id=card.dataset.id,pid=e.pointerId,sy=e.clientY;
@@ -694,7 +742,7 @@ function bindProject(){
     const grow=()=>{t.style.height="auto";t.style.height=t.scrollHeight+"px"};grow();t.oninput=grow;
     t.onchange=async()=>{const i=items.find(x=>x.id===t.dataset.i);const oldv=i[t.dataset.f];i[t.dataset.f]=t.value.trim();J(await sb.from("snaplog_items").update({[t.dataset.f]:i[t.dataset.f]}).eq("id",i.id));if(t.dataset.f==="name"&&oldv!==i.name)logAct("Renamed item",proj.name+": "+(oldv||"(blank)")+" → "+(i.name||"(blank)"))};});
   m.querySelectorAll("input[type=file]").forEach(inp=>inp.onchange=()=>addPhotos(inp));
-  m.querySelectorAll(".thumbs img,.one img").forEach(im=>im.onclick=()=>openViewer(im.dataset.i,im.dataset.k,+im.dataset.n));
+  m.querySelectorAll(".thumbs img,.one img").forEach(im=>im.onclick=()=>{if(!justDraggedPhoto)openViewer(im.dataset.i,im.dataset.k,+im.dataset.n)});
   m.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{
     if(!confirm("Delete this item and its photos?"))return;
     busy("Deleting…");const it=items.find(x=>x.id===b.dataset.del);
