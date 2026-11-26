@@ -255,7 +255,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-26.4";
+const APP_VER="2026-11-26.5";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -336,7 +336,7 @@ async function home(){
     return {p,n:li.length,b,a,pct:li.length?Math.round(a/li.length*100):0,done:li.length>0&&a===li.length};});
   const f={q:"",s:"all"};
   let drag=null,justDragged=false;
-  let collapsed=new Set(JSON.parse(localStorage.pl_fold||"[]"));
+  let opened=new Set(JSON.parse(localStorage.pl_fopen||"[]"));
   function bindDrag(){
     document.querySelectorAll(".proj").forEach(el=>el.addEventListener("pointerdown",e=>{
       if(e.pointerType==="mouse"&&e.button!==0)return;
@@ -412,7 +412,8 @@ async function home(){
     else if(!list.length)h+='<div class="empty">No matching projects.</div>';
     for(const fd of FOLDERS){
       const inF=list.filter(r=>folderOf(r.p)===fd);
-      const isC=collapsed.has(fd);
+      const forceOpen=f.q.trim()!==""||f.s!=="all";
+      const isC=!forceOpen&&!opened.has(fd);
       h+=`<div class="fold${isC?" collapsed":""}" data-folder="${esc(fd)}"><div class="fhead" data-f="${esc(fd)}"><span>📁 ${esc(fd)}</span><span class="fr"><span>${inF.length}</span><button class="fbtn" data-f="${esc(fd)}" aria-label="${isC?"Expand":"Collapse"} ${esc(fd)}">${isC?"+":"−"}</button></span></div>`;
       if(!isC)for(const r of inF){
         h+=`<div class="card prow proj" data-id="${r.p.id}"><div class="pn">${esc(r.p.name)}</div><div class="pm"><span>${r.n} items · ${r.b} ${esc(labelsOf(r.p).bl.toLowerCase())} · ${r.a} ${esc(labelsOf(r.p).al.toLowerCase())}</span><span>${r.pct}%</span></div><div class="bar"><i style="width:${r.pct}%"></i></div></div>`;
@@ -423,7 +424,7 @@ async function home(){
     h+=`<div class="foot">Logged in as ${esc(who())}</div>`;
     $("#main").innerHTML=h;
     document.querySelectorAll(".proj").forEach(e=>e.onclick=()=>{if(!justDragged)openProject(e.dataset.id)});
-    document.querySelectorAll(".fhead").forEach(h=>h.onclick=()=>{if(justDragged)return;const k=h.dataset.f;collapsed.has(k)?collapsed.delete(k):collapsed.add(k);localStorage.pl_fold=JSON.stringify([...collapsed]);draw()});
+    document.querySelectorAll(".fhead").forEach(h=>h.onclick=()=>{if(justDragged)return;const k=h.dataset.f;opened.has(k)?opened.delete(k):opened.add(k);localStorage.pl_fopen=JSON.stringify([...opened]);draw()});
     bindDrag();
     document.querySelectorAll(".chip").forEach(e=>e.onclick=()=>{f.s=e.dataset.s;draw();});
     const inp=$("#psearch");
