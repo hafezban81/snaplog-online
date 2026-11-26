@@ -255,7 +255,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-26.7";
+const APP_VER="2026-11-26.9";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -333,8 +333,9 @@ async function home(){
   const ps=J(await sb.from("snaplog_projects").select("id,name,created_at,folder,sort_order,labels,snaplog_items(id,snaplog_photos(kind))").is("deleted_at",null).order("sort_order",{ascending:true,nullsFirst:false}).order("created_at",{ascending:false}));
   busy(false);
   const has=(i,k)=>i.snaplog_photos.some(x=>x.kind===k);
-  const rows=ps.map(p=>{const li=p.snaplog_items;const b=li.filter(i=>has(i,"before")).length,a=li.filter(i=>has(i,"after")).length;
+  const mkRows=()=>ps.map(p=>{const li=p.snaplog_items;const b=li.filter(i=>has(i,"before")).length,a=li.filter(i=>has(i,"after")).length;
     return {p,n:li.length,b,a,pct:li.length?Math.round(a/li.length*100):0,done:li.length>0&&a===li.length};});
+  let rows=mkRows();
   const f={q:"",fo:null};
   let drag=null,justDragged=false;
   let opened=new Set(JSON.parse(localStorage.pl_fopen||"[]"));
@@ -345,12 +346,18 @@ async function home(){
       let timer=null;
       const noScroll=ev=>{if(drag)ev.preventDefault()};
       const stop=()=>{clearTimeout(timer);removeEventListener("pointermove",onMove);removeEventListener("pointerup",onUp);removeEventListener("pointercancel",cancel);removeEventListener("touchmove",noScroll)};
-      const cancel=()=>{stop();if(drag){drag.ghost.remove();drag.el.classList.remove("dragging");drag.over?.classList.remove("over");drag.insEl?.classList.remove("ins-before","ins-after");drag=null}};
+      const clearShift=()=>{document.querySelectorAll(".proj").forEach(c=>{c.style.transform="";c.style.transition=""})};
+      const cancel=()=>{stop();if(drag){drag.ghost.remove();drag.el.style.display="";drag.el.classList.remove("dragging");drag.over?.classList.remove("over");clearShift();drag=null}};
       const begin=()=>{
-        drag={el,id:el.dataset.id,ghost:el.cloneNode(true),over:null};
+        drag={el,id:el.dataset.id,ghost:el.cloneNode(true),over:null,base:[],idx:0,h:el.offsetHeight+8};
         drag.ghost.classList.add("ghost");drag.ghost.style.width=el.offsetWidth+"px";
-        document.body.appendChild(drag.ghost);el.classList.add("dragging");
+        document.body.appendChild(drag.ghost);el.classList.add("dragging");el.style.display="none";
         addEventListener("touchmove",noScroll,{passive:false});
+      };
+      // snapshot the resting positions of the cards in a folder, before any shifting
+      const enter=t=>{
+        clearShift();
+        drag.base=[...t.querySelectorAll(".proj")].filter(c=>c.dataset.id!==drag.id).map(c=>{const r=c.getBoundingClientRect();return{el:c,id:c.dataset.id,mid:r.top+r.height/2}});
       };
       const onMove=ev=>{
         if(ev.pointerId!==pid)return;
@@ -361,35 +368,33 @@ async function home(){
         ev.preventDefault();
         drag.ghost.style.left=(ev.clientX-drag.ghost.offsetWidth/2)+"px";
         drag.ghost.style.top=(ev.clientY-24)+"px";
-        const hit=document.elementFromPoint(ev.clientX,ev.clientY);
-        const t=hit?.closest?.(".fold")||null;
-        if(drag.over!==t){drag.over?.classList.remove("over");t?.classList.add("over");drag.over=t}
-        const card=hit?.closest?.(".proj")||null;
-        if(card&&card!==drag.el&&t&&card.closest(".fold")===t){
-          const r=card.getBoundingClientRect();const before=ev.clientY<r.top+r.height/2;
-          if(drag.insEl!==card||drag.insBefore!==before){
-            drag.insEl?.classList.remove("ins-before","ins-after");
-            drag.insEl=card;drag.insBefore=before;drag.ins={el:card,before};
-            card.classList.add(before?"ins-before":"ins-after");
-          }
+        const t=document.elementFromPoint(ev.clientX,ev.clientY)?.closest?.(".fold")||null;
+        if(drag.over!==t){
+          drag.over?.classList.remove("over");t?.classList.add("over");drag.over=t;
+          drag.idx=0;drag.base=[];
+          if(t)enter(t);
+        }
+        if(!t)return;
+        const idx=t.classList.contains("collapsed")?0:drag.base.filter(b=>ev.clientY>b.mid).length;
+        if(idx!==drag.idx){
+          drag.idx=idx;
+          drag.base.forEach((b,i)=>{b.el.style.transition="transform .2s ease";b.el.style.transform=i>=idx?`translateY(${drag.h}px)`:""});
         }
       };
       const onUp=async ev=>{
         if(ev.pointerId!==pid)return;
         stop();
         if(!drag)return;
-        const d=drag;drag=null;d.ghost.remove();d.el.classList.remove("dragging");d.over?.classList.remove("over");d.insEl?.classList.remove("ins-before","ins-after");
+        const d=drag;drag=null;d.ghost.remove();d.el.style.display="";d.el.classList.remove("dragging");d.over?.classList.remove("over");clearShift();
         justDragged=true;setTimeout(()=>justDragged=false,300);
         const target=d.over?.dataset.folder;
         const p=ps.find(x=>x.id===d.id);
         if(!target||!p)return;
+        const collapsed=d.over.classList.contains("collapsed");
         const sameFolder=folderOf(p)===target;
-        if(sameFolder&&!d.ins)return;
-        const sec=[...document.querySelectorAll(".fold")].find(x=>x.dataset.folder===target);
-        const ids=(sec.classList.contains("collapsed")?ps.filter(x=>folderOf(x)===target).map(x=>x.id):[...sec.querySelectorAll(".proj")].map(e=>e.dataset.id)).filter(x=>x!==p.id);
-        let idx=ids.length;
-        if(d.ins){const k=ids.indexOf(d.ins.el.dataset.id);if(k>=0)idx=k+(d.ins.before?0:1)}
-        ids.splice(idx,0,p.id);
+        const ids=collapsed?ps.filter(x=>folderOf(x)===target&&x.id!==p.id).map(x=>x.id):d.base.map(b=>b.id);
+        ids.splice(collapsed?ids.length:d.idx,0,p.id);
+        if(sameFolder&&ps.filter(x=>folderOf(x)===target).map(x=>x.id).join()===ids.join())return;
         busy("Saving…");
         try{
           const res=await Promise.all(ids.map((id,i)=>{const u={sort_order:i*10};if(id===p.id)u.folder=target;return sb.from("snaplog_projects").update(u).eq("id",id)}));
@@ -397,7 +402,9 @@ async function home(){
           if(!sameFolder)logAct("Moved project to folder",p.name+" → "+target);
           else logAct("Reordered projects",target);
         }finally{busy(false)}
-        home();
+        ids.forEach((id,i)=>{const x=ps.find(y=>y.id===id);if(x){x.sort_order=i*10;if(id===p.id)x.folder=target}});
+        ps.sort((a,b)=>((a.sort_order??1e9)-(b.sort_order??1e9))||(a.created_at<b.created_at?1:-1));
+        rows=mkRows();draw();
       };
       addEventListener("pointermove",onMove,{passive:false});addEventListener("pointerup",onUp);addEventListener("pointercancel",cancel);
       if(touch)timer=setTimeout(()=>{if(!drag)begin()},350);
