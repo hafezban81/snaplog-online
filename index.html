@@ -270,7 +270,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-27.9";
+const APP_VER="2026-11-27.10";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -670,22 +670,36 @@ function bindPhotoDrag(){
         document.body.appendChild(ghost);im.style.opacity=".35";
       }
       ev.preventDefault();
-      ghost.style.left=(ev.clientX-ghost.offsetWidth/2)+"px";ghost.style.top=(ev.clientY-ghost.offsetHeight/2)+"px";
-      const box=document.elementFromPoint(ev.clientX,ev.clientY)?.closest?.(".dent")||null;
+      lx=ev.clientX;ly=ev.clientY;
+      ghost.style.left=(lx-ghost.offsetWidth/2)+"px";ghost.style.top=(ly-ghost.offsetHeight/2)+"px";
+      aim(lx,ly);
+      const edge=70,v=ly>innerHeight-edge?14:ly<edge?-14:0;
+      scrollV=v;
+      if(v&&!raf)raf=requestAnimationFrame(tick);
+    };
+    let lx=0,ly=0,scrollV=0,raf=null;
+    const aim=(x,y)=>{
+      const box=document.elementFromPoint(x,y)?.closest?.(".dent")||null;
       let t=null;
       destId=box?box.dataset.id:null;
       if(box){
         let best=1e9;
-        box.querySelectorAll(".thumbs img").forEach(x=>{
-          const r=x.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,d=Math.hypot(ev.clientX-cx,ev.clientY-cy);
-          if(d<best){best=d;t=x;x._after=ev.clientX>cx||ev.clientY>cy}
+        box.querySelectorAll(".thumbs img").forEach(e=>{
+          const r=e.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,d=Math.hypot(x-cx,y-cy);
+          if(d<best){best=d;t=e;e._after=x>cx||y>cy}
         });
       }
       if(over!==t){over?.classList.remove("ptarget");over=t;over?.classList.add("ptarget")}
     };
+    const tick=()=>{
+      if(!scrollV){raf=null;return}
+      scrollBy(0,scrollV);aim(lx,ly);
+      raf=requestAnimationFrame(tick);
+    };
     const up=async ev=>{
       if(ev.pointerId!==pid)return;
       cleanup();
+      scrollV=0;if(raf){cancelAnimationFrame(raf);raf=null}
       if(!ghost)return;
       ghost.remove();im.style.opacity="";over?.classList.remove("ptarget");
       justDraggedPhoto=true;setTimeout(()=>justDraggedPhoto=false,300);
