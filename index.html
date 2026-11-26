@@ -131,7 +131,7 @@ main{max-width:980px;margin:0 auto;padding:12px 12px 90px}
 .fbtn{width:28px;height:28px;border-radius:8px;border:1px solid #bbb;background:#fff;font-size:18px;line-height:1;padding:0;margin-left:6px;color:var(--ink)}
 .fr{display:flex;align-items:center;gap:4px}
 .fold.over{background:rgba(37,99,235,.12);outline:2px dashed #2563eb}
-.fhead{display:flex;justify-content:space-between;font-weight:600;margin:12px 2px 6px;color:var(--ink)}
+.fhead{cursor:pointer;display:flex;justify-content:space-between;font-weight:600;margin:12px 2px 6px;color:var(--ink)}
 .fempty{color:var(--mute);font-size:13px;text-align:center;padding:12px;border:1px dashed #bbb;border-radius:10px;margin:4px 0 8px}
 .card.prow.proj{user-select:none;-webkit-user-select:none;touch-action:pan-y}
 .card.dragging{opacity:.35}
@@ -255,7 +255,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-26.3";
+const APP_VER="2026-11-26.4";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -413,7 +413,7 @@ async function home(){
     for(const fd of FOLDERS){
       const inF=list.filter(r=>folderOf(r.p)===fd);
       const isC=collapsed.has(fd);
-      h+=`<div class="fold${isC?" collapsed":""}" data-folder="${esc(fd)}"><div class="fhead"><span>📁 ${esc(fd)}</span><span class="fr"><span>${inF.length}</span><button class="fbtn" data-f="${esc(fd)}" aria-label="${isC?"Expand":"Collapse"} ${esc(fd)}">${isC?"+":"−"}</button></span></div>`;
+      h+=`<div class="fold${isC?" collapsed":""}" data-folder="${esc(fd)}"><div class="fhead" data-f="${esc(fd)}"><span>📁 ${esc(fd)}</span><span class="fr"><span>${inF.length}</span><button class="fbtn" data-f="${esc(fd)}" aria-label="${isC?"Expand":"Collapse"} ${esc(fd)}">${isC?"+":"−"}</button></span></div>`;
       if(!isC)for(const r of inF){
         h+=`<div class="card prow proj" data-id="${r.p.id}"><div class="pn">${esc(r.p.name)}</div><div class="pm"><span>${r.n} items · ${r.b} ${esc(labelsOf(r.p).bl.toLowerCase())} · ${r.a} ${esc(labelsOf(r.p).al.toLowerCase())}</span><span>${r.pct}%</span></div><div class="bar"><i style="width:${r.pct}%"></i></div></div>`;
       }
@@ -423,7 +423,7 @@ async function home(){
     h+=`<div class="foot">Logged in as ${esc(who())}</div>`;
     $("#main").innerHTML=h;
     document.querySelectorAll(".proj").forEach(e=>e.onclick=()=>{if(!justDragged)openProject(e.dataset.id)});
-    document.querySelectorAll(".fbtn").forEach(b=>b.onclick=()=>{const k=b.dataset.f;collapsed.has(k)?collapsed.delete(k):collapsed.add(k);localStorage.pl_fold=JSON.stringify([...collapsed]);draw()});
+    document.querySelectorAll(".fhead").forEach(h=>h.onclick=()=>{if(justDragged)return;const k=h.dataset.f;collapsed.has(k)?collapsed.delete(k):collapsed.add(k);localStorage.pl_fold=JSON.stringify([...collapsed]);draw()});
     bindDrag();
     document.querySelectorAll(".chip").forEach(e=>e.onclick=()=>{f.s=e.dataset.s;draw();});
     const inp=$("#psearch");
