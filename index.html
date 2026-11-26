@@ -270,7 +270,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-27.13";
+const APP_VER="2026-11-27.14";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -841,22 +841,84 @@ function bindProject(){
 
 }
 
+async function exifTime(file){
+  try{
+    const dv=new DataView(await file.slice(0,262144).arrayBuffer());
+    if(dv.getUint16(0)!==0xFFD8)return null;
+    let o=2;
+    while(o<dv.byteLength-4){
+      const m=dv.getUint16(o),len=dv.getUint16(o+2);
+      if(m===0xFFE1&&dv.getUint32(o+4)===0x45786966){
+        const t=o+10,le=dv.getUint16(t)===0x4949;
+        const u16=p=>dv.getUint16(p,le),u32=p=>dv.getUint32(p,le);
+        const ascii=(p,n)=>{let r="";for(let i=0;i<n-1;i++)r+=String.fromCharCode(dv.getUint8(p+i));return r};
+        const found={};let exifOff=null;
+        const ifd0=t+u32(t+4);
+        for(let i=0,n=u16(ifd0);i<n;i++){const e=ifd0+2+i*12,tag=u16(e);
+          if(tag===0x8769)exifOff=t+u32(e+8);
+          if(tag===0x0132)found.dt=ascii(t+u32(e+8),u32(e+4));}
+        if(exifOff!=null)for(let i=0,n=u16(exifOff);i<n;i++){const e=exifOff+2+i*12;
+          if(u16(e)===0x9003)found.dto=ascii(t+u32(e+8),u32(e+4));}
+        const str=found.dto||found.dt;if(!str)return null;
+        const g=str.match(/(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/);if(!g)return null;
+        return new Date(+g[1],+g[2]-1,+g[3],+g[4],+g[5],+g[6]);
+      }
+      o+=2+len;
+    }
+  }catch(e){}
+  return null;
+}
+function reviewBatch(rows){
+  return new Promise(res=>{
+    const groups=[];for(let k=0;k<rows.length;k+=MAXX)groups.push(rows.slice(k,k+MAXX));
+    const urls=[];
+    const wrap=document.createElement("div");
+    wrap.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:70;display:flex;align-items:flex-end;justify-content:center";
+    wrap.innerHTML=`<div style="background:#fff;width:100%;max-width:520px;max-height:88vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px;box-sizing:border-box">
+      <h3 style="margin:0 0 4px">Check photo times</h3>
+      <div style="color:#666;font-size:13px;margin-bottom:4px">Times are read from each photo. Change any that are wrong, then upload. ${rows.length} photos in ${groups.length} entr${groups.length>1?"ies":"y"}.</div>
+      <div id="bRows"></div>
+      <button class="btn primary" id="bGo" style="width:100%;margin:12px 0 6px">Upload ${rows.length} photos</button>
+      <button class="btn" id="bNo" style="width:100%">Cancel</button></div>`;
+    const box=wrap.querySelector("#bRows");
+    groups.forEach((g,gi)=>{
+      const h=document.createElement("div");
+      h.innerHTML=`<div style="font-weight:bold;margin:12px 0 4px">Entry ${gi+1}</div>`;
+      g.forEach(r=>{
+        const row=document.createElement("div");row.style.cssText="display:flex;gap:10px;align-items:center;margin:6px 0";
+        const url=URL.createObjectURL(r.file);urls.push(url);
+        row.innerHTML=`<img src="${url}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;flex:none"><input type="datetime-local" value="${toLocalInput(r.t)}" style="font:inherit;padding:6px;border:1px solid #d0d7e2;border-radius:8px;flex:1;min-width:0">`;
+        row.querySelector("input").onchange=e=>{const d=new Date(e.target.value);if(!isNaN(d))r.t=d};
+        h.appendChild(row);
+      });
+      box.appendChild(h);
+    });
+    const close=v=>{wrap.remove();urls.forEach(u=>URL.revokeObjectURL(u));res(v)};
+    wrap.querySelector("#bGo").onclick=()=>close(true);
+    wrap.querySelector("#bNo").onclick=()=>close(false);
+    document.body.appendChild(wrap);
+  });
+}
 async function batchUpload(list){
-  const files=[...list].sort((a,b)=>a.lastModified-b.lastModified);
-  if(!files.length)return;
-  const groups=[];for(let k=0;k<files.length;k+=MAXX)groups.push(files.slice(k,k+MAXX));
+  if(!list||!list.length)return;
+  busy("Reading photo times…");
+  let rows;
+  try{rows=await Promise.all([...list].map(async f=>({file:f,t:(await exifTime(f))||new Date(f.lastModified||Date.now())})))}finally{busy(false)}
+  rows.sort((a,b)=>a.t-b.t);
+  if(!(await reviewBatch(rows)))return;
+  const groups=[];for(let k=0;k<rows.length;k+=MAXX)groups.push(rows.slice(k,k+MAXX));
   const y=window.scrollY;let n=0;
   try{
     for(let g=0;g<groups.length;g++){
       const it=J(await sb.from("snaplog_items").insert({project_id:proj.id,name:"Entry "+(items.length+g+1),position:Date.now()+g}).select("id").single());
-      for(const f of groups[g]){
-        busy("Uploading "+(++n)+" of "+files.length+"…");
-        const blob=await compress(f),id=uid(),path=`${proj.id}/${it.id}/${id}.jpg`;
+      for(const r of groups[g]){
+        busy("Uploading "+(++n)+" of "+rows.length+"…");
+        const blob=await compress(r.file),id=uid(),path=`${proj.id}/${it.id}/${id}.jpg`;
         J(await sb.storage.from(BUCKET).upload(path,blob,{contentType:"image/jpeg"}));
-        J(await sb.from("snaplog_photos").insert({id,item_id:it.id,kind:"extra",path,created_at:new Date(f.lastModified||Date.now()).toISOString()}));
+        J(await sb.from("snaplog_photos").insert({id,item_id:it.id,kind:"extra",path,created_at:new Date(r.t).toISOString()}));
       }
     }
-    logAct("Batch uploaded "+files.length+" photos",proj.name);
+    logAct("Batch uploaded "+rows.length+" photos",proj.name);
   }finally{busy(false)}
   await loadItems();renderProject();window.scrollTo(0,y);
 }
