@@ -17,7 +17,7 @@ html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 -apple-sy
 button{font:inherit;cursor:pointer}
 header.top{position:sticky;top:0;z-index:20;background:#1b3a8c;color:#fff;border-bottom:1px solid #12296a;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;display:flex;align-items:center;gap:8px}
 header.top h1{font-size:17px;margin:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-header.top h1.wa{font-family:Impact,"Arial Black",Haettenschweiler,sans-serif;font-size:24px;font-weight:900;letter-spacing:1px;text-transform:uppercase;padding:2px 0;background:linear-gradient(90deg,#ffe066 0%,#ff9f1c 30%,#ff3d7f 60%,#a78bfa 80%,#38bdf8 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:.8px #ffffff;filter:drop-shadow(0 2px 0 #0b1d4d) drop-shadow(0 0 6px rgba(255,255,255,.35))}
+header.top h1.wa{font-family:Impact,"Arial Black",Haettenschweiler,sans-serif;font-size:22px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;padding:2px 0;background:linear-gradient(180deg,#ffffff 0%,#dbeafe 55%,#93c5fd 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 0 #0b1d4d)}
 .btn{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:8px 12px;color:var(--ink)}
 .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
 .btn.danger{color:var(--bad)}
@@ -259,7 +259,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-26.14";
+const APP_VER="2026-11-26.15";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
