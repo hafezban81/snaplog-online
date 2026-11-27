@@ -270,7 +270,7 @@ let reportT=Date.now();
 const toLocalInput=t=>new Date(t-new Date(t).getTimezoneOffset()*60000).toISOString().slice(0,16);
 
 /* ---------- Supabase ---------- */
-const APP_VER="2026-11-27.14";
+const APP_VER="2026-11-27.15";
 const SB_URL="https://bhhpyhocacoldqiaxdql.supabase.co";
 const SB_KEY="sb_publishable_xem6cdCls26YXIsd_ITGlw_DyXCkKqW";
 const BUCKET="photos",DOMAIN="@snaplog.app",DOMAINS=["@snaplog.app","@snaplog.online"];
@@ -1117,7 +1117,7 @@ function report(){
   view="report";
   $("#fab").style.display="none";
   let h=`<div class="noprint" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center"><button class="btn" id="rb">‹ Back</button><button class="btn primary" onclick="window.print()">🖨 Print / Save as PDF</button><button class="btn primary" id="rw">📝 Word (.docx)</button>${cfg.stamp?`<label style="font-size:13px;color:var(--mute)">Report date <input type="datetime-local" id="rdate" value="${toLocalInput(reportT)}" style="font:inherit;padding:5px;border:1px solid var(--line);border-radius:8px"></label>`:""}</div>
-  <h2 style="margin:0 0 4px;${proj.wcf&&proj.wcf.on?'break-before:page;':''}">${esc(proj.name)}</h2><div style="color:#666;margin-bottom:14px">${proj.kind==="batch"?"Batch report":proj.kind==="defect"?"Photo log":esc(cfg.bl)+" / "+esc(cfg.al)+" photo report"}${cfg.stamp?` · <span id="rhead">${fmt(reportT)}</span>`:""}</div>`;
+  ${proj.kind==="batch"?'<div style="font-size:20px;font-weight:bold;color:#1d4ed8;margin:0 0 6px">Batch Report</div>':""}<h2 style="margin:0 0 4px;${proj.wcf&&proj.wcf.on?'break-before:page;':''}">${esc(proj.name)}</h2><div style="color:#666;margin-bottom:14px">${proj.kind==="batch"?"":proj.kind==="defect"?"Photo log":esc(cfg.bl)+" / "+esc(cfg.al)+" photo report"}${cfg.stamp?`${proj.kind==="batch"?"":" · "}<span id="rhead">${fmt(reportT)}</span>`:""}</div>`;
   if(isList(proj.kind)){h+=items.map((i,n)=>`<div class="rp-item"><h4>#${n+1} ${esc(i.name||"(no name)")}</h4>${i.notes?`<div class="dt" style="margin-bottom:6px">${esc(i.notes)}</div>`:""}<div class="rp-dgrid">${i.extra.length?i.extra.map(p=>stampImg(p)).join(""):'<div class="dt">— no photo —</div>'}</div></div>`).join("");}
   else items.forEach((i,n)=>{
     const col=(ph)=>ph.length?ph.map(p=>stampImg(p)).join(""):'<div class="dt">— no photo —</div>';
